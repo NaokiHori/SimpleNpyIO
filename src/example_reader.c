@@ -22,7 +22,13 @@ int example_reader(const char fname[]){
     printf("file open error: %s\n", fname);
     exit(EXIT_FAILURE);
   }
-  simple_npyio_r_header(&ndim, &shape, &dtype, &is_fortran_order, fp);
+  size_t header_size = simple_npyio_r_header(&ndim, &shape, &dtype, &is_fortran_order, fp);
+  if(header_size == 0){
+    printf("simple_npyio_r_header failed\n");
+    exit(EXIT_FAILURE);
+  }else{
+    printf("header is successfully loaded  (size: %zu)\n", header_size);
+  }
   data = calloc(shape[0]*shape[1], sizeof(int));
   if(data == NULL){
     printf("memory allocation error (data)\n");
@@ -42,6 +48,7 @@ int example_reader(const char fname[]){
   }
   /* clean-up memories */
   free(shape);
+  free(dtype);
   free(data);
   return 0;
 }

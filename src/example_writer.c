@@ -23,7 +23,7 @@ int example_writer(const char fname[]){
     }
   }
   // output from C to compare with python output
-  printf("data (will be written):\n");
+  printf("data (written):\n");
   for(int j = 0; j < ny; j++){
     for(int i = 0; i < nx; i++){
       char eol = i == nx - 1 ? '\n' : ' ';
@@ -36,7 +36,7 @@ int example_writer(const char fname[]){
   // size in each dimension, assigned later
   size_t *shape = NULL;
   // datatype, see https://numpy.org/doc/stable/reference/arrays.dtypes.html
-  const char dtype[] = {"<i4"};
+  const char dtype[] = {"'<i4'"};
   // memory ordering, usually false
   const bool is_fortran_order = false;
   /* shape depends on your data */
@@ -54,7 +54,13 @@ int example_writer(const char fname[]){
     printf("file open error: %s\n", fname);
     exit(EXIT_FAILURE);
   }
-  simple_npyio_w_header(ndim, shape, dtype, is_fortran_order, fp);
+  size_t header_size = simple_npyio_w_header(ndim, shape, dtype, is_fortran_order, fp);
+  if(header_size == 0){
+    printf("simple_npyio_w_header failed\n");
+    exit(EXIT_FAILURE);
+  }else{
+    printf("header is successfully written (size: %zu)\n", header_size);
+  }
   fwrite(data, sizeof(int), nx*ny, fp);
   fclose(fp);
   /* clean-up memories */

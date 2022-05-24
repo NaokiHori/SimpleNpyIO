@@ -1,0 +1,1219 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
+#include <limits.h>
+#include <errno.h>
+#include "simple_npyio.h"
+
+
+/* assumptions and definitions */
+// check 1 byte is 8 bits
+#if CHAR_BIT != 8
+#error "CHAR_BIT is not 8"
+#endif
+// all npy files should start from this magic string
+static const char magic_string[] = {"\x93NUMPY"};
+// end-of-string
+#define NUL '\x00'
+
+/* wrappers of library functions with error handlers */
+// calloc
+#define CALLOC(ptr, count, size){                              \
+  errno = 0;                                                   \
+  if(((ptr) = calloc((count), (size))) == NULL){               \
+    int code = errno;                                          \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
+    fprintf(stderr, "calloc failed (error code: %d)\n", code); \
+    fprintf(stderr, "%s\n", strerror(code));                   \
+    fprintf(stderr, "\tptr:   %s, %p\n",  #ptr,   ptr);        \
+    fprintf(stderr, "\tcount: %s, %zu\n", #count, count);      \
+    fprintf(stderr, "\tsize:  %s, %zu\n", #size,  size);       \
+    return -1;                                                 \
+  }                                                            \
+}
+// free
+#define FREE(ptr){                                           \
+  errno = 0;                                                 \
+  free((ptr));                                               \
+  if(errno != 0){                                            \
+    int code = errno;                                        \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);   \
+    fprintf(stderr, "free failed (error code: %d)\n", code); \
+    fprintf(stderr, "\tptr: %s, %p\n", #ptr, ptr);           \
+    return -1;                                               \
+  }                                                          \
+}
+
+// fread
+#define FREAD(ptr, size, nitems, stream) {                    \
+  errno = 0;                                                  \
+  if(fread((ptr), (size), (nitems), (stream)) < (nitems)){    \
+    int code = errno;                                         \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);    \
+    fprintf(stderr, "fread failed (error code: %d)\n", code); \
+    fprintf(stderr, "\tptr:    %s, %p\n",  #ptr,    ptr);     \
+    fprintf(stderr, "\tsize:   %s, %zu\n", #size,   size);    \
+    fprintf(stderr, "\tnitems: %s, %zu\n", #nitems, nitems);  \
+    fprintf(stderr, "\tstream: %s, %p\n",  #stream, stream);  \
+    return -1;                                                \
+  }                                                           \
+}
+// fwrite
+#define FWRITE(ptr, size, nitems, stream) {                    \
+  errno = 0;                                                   \
+  if(fwrite((ptr), (size), (nitems), (stream)) < (nitems)){    \
+    int code = errno;                                          \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
+    fprintf(stderr, "fwrite failed (error code: %d)\n", code); \
+    fprintf(stderr, "\tptr:    %s, %p\n",  #ptr,    ptr);      \
+    fprintf(stderr, "\tsize:   %s, %zu\n", #size,   size);     \
+    fprintf(stderr, "\tnitems: %s, %zu\n", #nitems, nitems);   \
+    fprintf(stderr, "\tstream: %s, %p\n",  #stream, stream);   \
+    return -1;                                                 \
+  }                                                            \
+}
+
+// snprintf
+#define SNPRINTF(str, size, ...) {                               \
+  errno = 0;                                                     \
+  if(snprintf((str), (size), __VA_ARGS__) != (int)(size-1)) {    \
+    int code = errno;                                            \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);       \
+    fprintf(stderr, "snprintf failed (error code: %d)\n", code); \
+    fprintf(stderr, "\tstr:    %s, %p\n",  #str,    str);        \
+    fprintf(stderr, "\tsize:   %s, %zu\n", #size,   size);       \
+    return -1;                                                   \
+  }                                                              \
+}
+
+// memcpy
+#define MEMCPY(dst, src, n) {                                  \
+  errno = 0;                                                   \
+  memcpy((dst), (src), (n));                                   \
+  if(errno != 0){                                              \
+    int code = errno;                                          \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
+    fprintf(stderr, "memcpy failed (error code: %d)\n", code); \
+    fprintf(stderr, "\tdst: %s, %p\n",  #dst, dst);            \
+    fprintf(stderr, "\tsrc: %s, %p\n",  #src, src);            \
+    fprintf(stderr, "\tn:   %s, %zu\n", #n,   n);              \
+    return -1;                                                 \
+  }                                                            \
+}
+// memcmp
+#define MEMCMP(retval, s1, s2, n) {                            \
+  errno = 0;                                                   \
+  (retval) = memcmp((s1), (s2), (n));                          \
+  if(errno != 0){                                              \
+    int code = errno;                                          \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
+    fprintf(stderr, "memcmp failed (error code: %d)\n", code); \
+    fprintf(stderr, "\ts1: %s, %p\n",  #s1, s1);               \
+    fprintf(stderr, "\ts2: %s, %p\n",  #s2, s2);               \
+    fprintf(stderr, "\tn:  %s, %zu\n", #n,  n);                \
+    return -1;                                                 \
+  }                                                            \
+}
+
+// strlen
+#define STRLEN(retval, s) {                                    \
+  errno = 0;                                                   \
+  if((s) == NULL){                                             \
+    int code = errno;                                          \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
+    fprintf(stderr, "strlen failed (error code: %d)\n", code); \
+    fprintf(stderr, "\ts: %s, %p\n", #s, s);                   \
+    return -1;                                                 \
+  }else{                                                       \
+    (retval) = strlen(s);                                      \
+  }                                                            \
+}
+// strtok
+#define STRTOK(buf, str, sep) {                                \
+  errno = 0;                                                   \
+  buf = strtok((str), (sep));                                  \
+  if(errno != 0){                                              \
+    int code = errno;                                          \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
+    fprintf(stderr, "strtok failed (error code: %d)\n", code); \
+    fprintf(stderr, "\tbuf: %s, %p\n", #buf, buf);             \
+    fprintf(stderr, "\tstr: %s, %p\n", #str, str);             \
+    fprintf(stderr, "\tsep: %s, %p\n", #sep, sep);             \
+    return -1;                                                 \
+  }                                                            \
+}
+// strtoll
+#define STRTOLL(retval, str, endptr, base) {                   \
+  errno = 0;                                                   \
+  retval = strtoll((str), (endptr), (base));                   \
+  if(errno != 0){                                              \
+    int code = errno;                                          \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
+    fprintf(stderr, "strtok failed (error code: %d)\n", code); \
+    fprintf(stderr, "\tstr:    %s, %p\n", #str, str);          \
+    fprintf(stderr, "\tendptr: %s, %p\n", #endptr, endptr);    \
+    fprintf(stderr, "\tbase:   %s, %d\n", #base, base);        \
+    return -1;                                                 \
+  }                                                            \
+}
+
+/* auxiliary functions which are used by writer and reader */
+
+// https://github.com/NaokiHori/CSnippets/blob/master/src/check_endian.c
+static bool is_big_endian(void){
+  const uint16_t val = 1 << 8;
+  return (bool)(((uint8_t *)(&val))[0]);
+}
+
+// https://github.com/NaokiHori/CSnippets/blob/master/src/convert_endian.c
+static int convert_endian(void *val, const size_t size){
+  // NULL check
+  if(val == NULL){
+    return -1;
+  }
+  // positive size check
+  if(size <= 0){
+    return -1;
+  }
+  // reject too large size
+  if(size >= 128){
+    return -1;
+  }
+  size_t n_bytes = size/sizeof(uint8_t);
+  uint8_t *buf = NULL;
+  CALLOC(buf, n_bytes, sizeof(uint8_t));
+  for(size_t i = 0; i < n_bytes; i++){
+    buf[i] = ((uint8_t *)val)[n_bytes-i-1];
+  }
+  MEMCPY(val, buf, size);
+  FREE(buf);
+  return 0;
+}
+
+static int find_pattern(size_t *location, const void *p0, const size_t size_p0, const void *p1, const size_t size_p1){
+  /*
+   * try to find a pattern "p1" in "p0"
+   *   and return its location IN BYTES
+   * -1 is returned when error is detected
+   *   if the pattern is not found
+   * note that sizes of "p0" and "p1" are
+   *   in BYTES, NOT number of elements
+   * thus it is necessary to divide by the
+   *   sizeof original datatype
+   *   after the result is obtained
+   */
+  // NULL check
+  if(p0 == NULL || p1 == NULL){
+    return -1;
+  }
+  // p0 is shorter than p1, return not found
+  if(size_p0 < size_p1){
+    return -1;
+  }
+  // e.g., size_p0 = 7, size_p1 = 3
+  //     0 1 2 3 4 5 6
+  // p0: a b c d e f g
+  // p1: x y z
+  //       x y z
+  //         x y z
+  //           x y z
+  //             x y z
+  //     ^       ^
+  //    imin    imax
+  size_t imin = 0;
+  size_t imax = size_p0-size_p1;
+  for(size_t i = imin; i <= imax; i++){
+    int retval;
+    MEMCMP(retval, p0+i, p1, size_p1);
+    if(retval == 0){
+      *location = i;
+      return 0;
+    }
+  }
+  return -1;
+}
+
+/* reader */
+
+#if defined(LOGGING_SIMPLE_NPYIO)
+#define LOGGING(...) { \
+  fprintf(stderr, "[SIMPLE_NPYIO reader] "); \
+  fprintf(stderr, __VA_ARGS__); \
+}
+#else
+#define LOGGING(...)
+#endif
+
+static int load_magic_string(size_t *buf_size, FILE *fp){
+  /*
+   * all npy file should start with \x93NUMPY,
+   *   which is checked here by comparing
+   *   the fist 6 bytes of the file
+   *   and the magic string given a priori
+   */
+  size_t nitems;
+  STRLEN(nitems, magic_string);
+  uint8_t *buf = NULL;
+  // allocate buffer and load from file
+  // NOTE: file pointer is moved forward as well
+  CALLOC(buf, nitems, sizeof(uint8_t));
+  FREAD(buf, sizeof(uint8_t), nitems, fp);
+  *buf_size = sizeof(uint8_t)*nitems;
+  // compare memories of
+  //   1. "buf" (loaded from file)
+  //   2. "magic_str" (answer)
+  int retval;
+  MEMCMP(retval, buf, magic_string, *buf_size);
+  if(retval != 0){
+    // they are not identical
+    return -1;
+  }
+  FREE(buf);
+  return 0;
+}
+
+static int load_versions(uint8_t *major_version, uint8_t *minor_version, size_t *buf_size, FILE *fp){
+  /*
+   * check version of the file
+   * for now 1.0, 2.0 are considered,
+   *    and others are rejected
+   */
+  const size_t nitems_major_version = 1;
+  const size_t nitems_minor_version = 1;
+  const size_t buf_size_major_version = sizeof(uint8_t)*nitems_major_version;
+  const size_t buf_size_minor_version = sizeof(uint8_t)*nitems_minor_version;
+  // allocate buffer and load from file
+  // (file pointer is moved forward as well)
+  FREAD(major_version, sizeof(uint8_t), nitems_major_version, fp);
+  FREAD(minor_version, sizeof(uint8_t), nitems_minor_version, fp);
+  // check version 1.x or 2.x
+  if(*major_version != 1 && *major_version != 2){
+    return -1;
+  }
+  // check version x.0
+  if(*minor_version != 0){
+    return -1;
+  }
+  LOGGING("major version: %u\n", *major_version);
+  LOGGING("minor version: %u\n", *minor_version);
+  *buf_size = buf_size_major_version + buf_size_minor_version;
+  return 0;
+}
+
+static int load_header_len(size_t *header_len, size_t *buf_size, size_t major_version, FILE *fp){
+  /*
+   * check header size of the npy file
+   * in particular HEADER_LEN = len(dict) + len(padding)
+   *   is loaded
+   * memory size of this variable depends on the major version
+   *   of the npy file, 2 bytes for major_version = 1,
+   *   while 4 bytes for major_version = 2
+   */
+  size_t nitems;
+  if(major_version == 1){
+    *buf_size = sizeof(uint16_t);
+    // usually 2, which is assumed
+    nitems = *buf_size/sizeof(uint8_t);
+  }else{
+    *buf_size = sizeof(uint32_t);
+    // usually 4, which is assumed
+    nitems = *buf_size/sizeof(uint8_t);
+  }
+  // allocate buffer and
+  //   load corresponding memory size from file
+  uint8_t *buf = NULL;
+  CALLOC(buf, nitems, sizeof(uint8_t));
+  FREAD(buf, sizeof(uint8_t), nitems, fp);
+  // convert little-endian value to big endian
+  //   if the architecture is big-endian-based
+  if(is_big_endian()){
+    convert_endian(buf, *buf_size);
+  }
+  // interpret buffer (sequence of uint8_t)
+  //   as a value of corresponding datatype
+  if(major_version == 1){
+    // interpret as a 2-byte value
+    *header_len = *((uint16_t *)buf);
+  }else{
+    // interpret as a 4-byte value
+    *header_len = *((uint32_t *)buf);
+  }
+  FREE(buf);
+  LOGGING("header_len: %zu\n", *header_len);
+  return 0;
+}
+
+static int load_dict_and_padding(uint8_t **dict_and_padding, size_t *buf_size, size_t header_len, FILE *fp){
+  /*
+   * load dictionary and padding
+   * loading padding is also necessary (or at least one of the easiest ways)
+   *   to move file pointer "fp" forward
+   */
+  size_t nitems = header_len/sizeof(uint8_t);
+  CALLOC(*dict_and_padding, nitems, sizeof(uint8_t));
+  FREAD(*dict_and_padding, sizeof(uint8_t), nitems, fp);
+  *buf_size = header_len;
+  return 0;
+}
+
+static int extract_dict(char **dict, uint8_t *dict_and_padding, size_t header_len){
+  /*
+   * extract dictionary "dict" from "dict_and_padding",
+   *   which contains dictionary and padding
+   * also unnecessary spaces are removed from the original array
+   *   to simplify the following procedures
+   * note that spaces inside quotations (e.g. dictionary key might contain spaces)
+   *   should NOT be eliminated, which are "necessary spaces" so to say
+   */
+  // look for "{" and "}" to find the range of dict in dict_and_padding,
+  // e.g., dict_and_padding:
+  //   <------------------------ dict ------------------------><- padding ->
+  //   {'descr': VALUE, 'fortran_order': VALUE, 'shape': VALUE}           \n
+  //   ^                                                      ^
+  //   s                                                      e
+  // s: start
+  // this should be 0, because of NPY format definition,
+  //   i.e., dict should start just after HEADER_LEN
+  // confirm it just in case
+  //   by checking whether the first byte is "{"
+  size_t s;
+  {
+    // use char since it's "{"
+    char p0 = dict_and_padding[0];
+    char p1 = '{';
+    int retval;
+    MEMCMP(retval, &p0, &p1, sizeof(char));
+    if(retval != 0){
+      return -1;
+    }
+    s = 0;
+  }
+  // e: end
+  // checking from the last, since padding only contains
+  //   space 0x20 and 0x0a, which is much safer than
+  //   walking through all dicts which have much richer info
+  size_t e = 0;
+  {
+    for(int i = header_len-1; i > 0; i--){
+      // use uint8_t since padding is essentially binary
+      //  rather than ascii
+      uint8_t p0 = dict_and_padding[i];
+      char p1 = '}';
+      int retval;
+      MEMCMP(retval, &p0, &p1, sizeof(char));
+      if(retval == 0){
+        e = i;
+        break;
+      }
+      if(i == 1){
+        // empty dict
+        return -1;
+      }
+    }
+  }
+  // flag dict_and_padding to decide
+  //   which part should be / should not be extracted
+  // "meaningless spaces" (spaces outside quotations) are de-flagged
+  // e.g., meaningless spaces are
+  //   {'descr': VALUE, 'fortran_order': VALUE, 'shape': VALUE}
+  //            ^      ^                ^      ^        ^
+  size_t n_chars_dict = 0;
+  bool *is_dict = NULL;
+  {
+    CALLOC(is_dict, e-s+1, sizeof(bool));
+    bool is_inside_s_quotations = false;
+    bool is_inside_d_quotations = false;
+    for(size_t i = s; i <= e; i++){
+      uint8_t c = dict_and_padding[i];
+      // check whether we are inside a pair of single quotations
+      if(c == (uint8_t)('\'')){
+        is_inside_s_quotations = !is_inside_s_quotations;
+      }
+      // check whether we are inside a pair of double quotations
+      if(c == (uint8_t)('"')){
+        is_inside_d_quotations = !is_inside_d_quotations;
+      }
+      if(c != (uint8_t)(' ')){
+        // if "c" is not space, the information is meaningful
+        //   as a member of the dictionary
+        n_chars_dict++;
+        is_dict[i-s] = true;
+      }else{
+        if(is_inside_s_quotations || is_inside_d_quotations){
+          // even if "c" is a space, it is a meaningful information
+          //   since it is inside a pair of quotations (e.g., key including space)
+          n_chars_dict++;
+          is_dict[i-s] = true;
+        }else{
+          // "c" is a space and outside pair of quotations,
+          //   indicating this space is meaningless
+          is_dict[i-s] = false;
+        }
+      }
+    }
+  }
+  // copy flagged part to dict
+  CALLOC(*dict, n_chars_dict+1, sizeof(char)); // + NUL
+  for(size_t i = s, j = 0; i <= e; i++){
+    if(is_dict[i-s]){
+      (*dict)[j] = dict_and_padding[i];
+      j++;
+    }
+  }
+  FREE(is_dict);
+  LOGGING("dict: %s\n", *dict);
+  return 0;
+}
+
+static int find_dict_value(const char key[], char **val, const char *dict){
+  /*
+   * dictionary consists of pairs of "key" and "val"
+   * this function extracts the "val" of the specified "key"
+   */
+  // number of characters which will be frequently used hereafter
+  // also NULL checks are done internally
+  size_t n_chars_key;
+  size_t n_chars_dict;
+  STRLEN(n_chars_key, key);
+  STRLEN(n_chars_dict, dict);
+  // do not accept zero-length strings, just in case
+  if(n_chars_key == 0){
+    return -1;
+  }
+  if(n_chars_dict == 0){
+    return -1;
+  }
+  // 1. find key locations (start and end)
+  size_t key_s = 0;
+  {
+    size_t location;
+    int retval = find_pattern(
+        &location,
+        (void *)dict,
+        sizeof(char)*n_chars_dict,
+        (void *)key,
+        sizeof(char)*n_chars_key
+    );
+    if(retval < 0){
+      return -1;
+    }
+    key_s = location/sizeof(char);
+  }
+  // end is easy since we know the length of the key
+  size_t key_e = key_s + n_chars_key - 1;
+  // 2. find val locations (start and end)
+  // start: end of the key + ":",
+  //   assuming no spaces
+  //   ... key:value ...
+  //         ^ ^
+  size_t val_s = key_e + 2;
+  size_t val_e;
+  // parse dict to figure out the end location of value,
+  //   which is based on the fact "python dict is delimited by ','"
+  // we might not be able to find ","
+  //   if the pair of key / value locates at the last of the given dict
+  // in this case "}" is used to notice we are at the end of dict
+  // note that "," might exist inside values
+  // thus we need to regard
+  //   "," ONLY outside pair of brackets as delimiters
+  int bracket_level_r = 0; // ( and )
+  int bracket_level_s = 0; // [ and ]
+  for(val_e = val_s; val_e < n_chars_dict; val_e++){
+    char c = dict[val_e];
+    if(c == '('){
+      bracket_level_r++;
+    }
+    if(c == ')'){
+      bracket_level_r--;
+    }
+    if(c == '['){
+      bracket_level_s++;
+    }
+    if(c == ']'){
+      bracket_level_s--;
+    }
+    bool is_outside_brackets_r = false;
+    bool is_outside_brackets_s = false;
+    if(bracket_level_r == 0){
+      is_outside_brackets_r = true;
+    }else if(bracket_level_r < 0){
+      // indicating ) is found but ( could not found in front of it
+      return -1;
+    }
+    if(bracket_level_s == 0){
+      is_outside_brackets_s = true;
+    }else if(bracket_level_s < 0){
+      // indicating ] is found but [ could not found in front of it
+      return -1;
+    }
+    // we are at the end of val if "," is found outside all brackets
+    if(c == ','){
+      if(is_outside_brackets_r && is_outside_brackets_s){
+        // end of val should be just before found ','
+        val_e -= 1;
+        break;
+      }
+    }
+    // we are at the end of dict if "}" is found
+    if(c == '}'){
+      // end of val should be just before '}'
+      val_e -= 1;
+      break;
+    }
+  }
+  // 3. now we know where val starts and terminates, so extract it
+  size_t n_chars_val = val_e-val_s+1;
+  CALLOC(*val, n_chars_val+1, sizeof(char)); // + NUL
+  MEMCPY(*val, dict+val_s, sizeof(char)*n_chars_val);
+  return 0;
+}
+
+static int extract_shape(size_t *ndim, size_t **shape, const char *dict){
+  /*
+   * find a key 'shape' and extract its value
+   * the returned value must be (as long as I know) a python tuple,
+   *   which is necessary to be parsed to re-construct the data
+   */
+  char *val = NULL;
+  if(find_dict_value("'shape'", &val, dict) < 0){
+    return -1;
+  }
+  // 1. check number of dimension (ndim) to store shape
+  {
+    char *str = NULL;
+    // copy "val" to a buffer "str" after removing parentheses
+    size_t n_chars_val;
+    STRLEN(n_chars_val, val);
+    // no parentheses (-2), with NUL (+1)
+    CALLOC(str, n_chars_val-2+1, sizeof(char));
+    MEMCPY(str, val+1, sizeof(char)*(n_chars_val-2));
+    // parse "val" to know "ndim",
+    // e.g.,
+    //   <empty> -> ndim = 0
+    //   314,    -> ndim = 1
+    //   31,4    -> ndim = 2
+    //   3,1,4,  -> ndim = 3
+    *ndim = 0;
+    for(size_t i = 0; ; i++){
+      const char sep[] = {","};
+      char *buf = NULL;
+      if(i == 0){
+        STRTOK(buf, str,  sep);
+      }else{
+        STRTOK(buf, NULL, sep);
+      }
+      if(buf == NULL){
+        break;
+      }else{
+        (*ndim)++;
+      }
+    }
+    FREE(str);
+  }
+  // 2. allocate shape and assign size in each dimension
+  CALLOC(*shape, *ndim, sizeof(size_t));
+  {
+    char *str = NULL;
+    // copy "val" to a buffer "str" after removing parentheses
+    size_t n_chars_val;
+    STRLEN(n_chars_val, val);
+    // no parentheses (-2), with NUL (+1)
+    CALLOC(str, n_chars_val-2+1, sizeof(char));
+    MEMCPY(str, val+1, sizeof(char)*(n_chars_val-2));
+    // parse value to know shape
+    // e.g.,
+    //   <empty> -> N/A
+    //   314,    -> shape[0] = 314
+    //   31,4    -> shape[0] = 31, shape[1] = 4
+    //   3,1,4,  -> shape[0] = 3,  shape[1] = 1, shape[2] = 4
+    for(size_t i = 0, j = 0; ; i++){
+      const char sep[] = {","};
+      char *buf = NULL;
+      if(i == 0){
+        STRTOK(buf, str,  sep);
+      }else{
+        STRTOK(buf, NULL, sep);
+      }
+      if(buf == NULL){
+        break;
+      }else{
+        // assign to the resulting buffer "shape"
+        STRTOLL((*shape)[j], buf, NULL, 10);
+        j++;
+      }
+    }
+    FREE(str);
+  }
+  FREE(val);
+  LOGGING("ndim: %zu\n", *ndim);
+  for(size_t i = 0; i < *ndim; i++){
+    LOGGING("shape[%zu]: %zu\n", i, (*shape)[i]);
+  }
+  return 0;
+}
+
+static int extract_dtype(char **dtype, const char *dict){
+  /*
+   * find a key 'descr' and extract its value
+   * return obtained value directly since it is enough
+   */
+  char *val = NULL;
+  if(find_dict_value("'descr'", &val, dict) < 0){
+    return -1;
+  }
+  *dtype = val;
+  LOGGING("dtype: %s\n", *dtype);
+  return 0;
+}
+
+static int extract_is_fortran_order(bool *is_fortran_order, const char *dict){
+  /*
+   * find a key 'fortran_order' and extract its value
+   * check whether it is "True" or "False",
+   *   convert it to boolean and return
+   */
+  char *val = NULL;
+  if(find_dict_value("'fortran_order'", &val, dict) < 0){
+    return -1;
+  }
+  // try to find "True"
+  const char pattern[] = {"True"};
+  size_t location;
+  size_t n_chars_val;
+  size_t n_chars_pattern;
+  STRLEN(n_chars_val, val);
+  STRLEN(n_chars_pattern, pattern);
+  int retval = find_pattern(
+      &location,
+      (void *)val,
+      sizeof(char)*n_chars_val,
+      (void *)pattern,
+      sizeof(char)*n_chars_pattern
+  );
+  // if successful, true; otherwise false
+  if(retval < 0){
+    *is_fortran_order = false;
+  }else{
+    *is_fortran_order = true;
+  }
+  FREE(val);
+  LOGGING("is_fortran_order: %u\n", *is_fortran_order);
+  return 0;
+}
+
+size_t simple_npyio_r_header(size_t *ndim, size_t **shape, char **dtype, bool *is_fortran_order, FILE *fp){
+  uint8_t major_version, minor_version;
+  size_t header_len, header_size;
+  uint8_t *dict_and_padding = NULL;
+  /* step 1: load header from file and move file pointer forward */
+  // load header to get / sanitise input and move file pointer forward
+  // also the total header size "header_size" is calculated
+  //   by summing up the size of each data "buf_size"
+  {
+    header_size = 0;
+    // 1. magic string
+    {
+      size_t buf_size;
+      if(load_magic_string(&buf_size, fp) < 0){
+        return 0;
+      }
+      header_size += buf_size;
+    }
+    // 2. NPY major and minor version
+    {
+      size_t buf_size;
+      if(load_versions(&major_version, &minor_version, &buf_size, fp) < 0){
+        return 0;
+      }
+      header_size += buf_size;
+    }
+    // 3. HEADER_LEN (see documentation of NPY format)
+    {
+      size_t buf_size;
+      if(load_header_len(&header_len, &buf_size, major_version, fp) < 0){
+        return 0;
+      }
+      header_size += buf_size;
+    }
+    // 4. dictionary and padding
+    {
+      size_t buf_size;
+      if(load_dict_and_padding(&dict_and_padding, &buf_size, header_len, fp) < 0){
+        return 0;
+      }
+      header_size += buf_size;
+    }
+  }
+  /* step 2: extract dictionary */
+  // extract dict from dict + padding
+  // also non-crutial spaces (spaces outside quotations) are eliminated
+  char *dict = NULL;
+  if(extract_dict(&dict, dict_and_padding, header_len) < 0){
+    return 0;
+  }
+  FREE(dict_and_padding);
+  /* step 3: extract information which are needed to reconstruct array */
+  /* in particular, shape, datatype, and memory order of the array */
+  if(extract_shape(ndim, shape, dict) < 0){
+    return 0;
+  }
+  if(extract_dtype(dtype, dict) < 0){
+    return 0;
+  }
+  if(extract_is_fortran_order(is_fortran_order, dict) < 0){
+    return 0;
+  }
+  // clean-up buffer
+  FREE(dict);
+  return header_size;
+}
+
+#undef LOGGING
+
+/* writer */
+
+#if defined(LOGGING_SIMPLE_NPYIO)
+#define LOGGING(...) { \
+  fprintf(stderr, "[SIMPLE_NPYIO writer] "); \
+  fprintf(stderr, __VA_ARGS__); \
+}
+#else
+#define LOGGING(...)
+#endif
+
+static int create_descr_value(char **value, const char dtype[]){
+  /*
+   * create a value of a dictionary key: "descr",
+   *   containing user-specified dtype
+   * for now this function just copies the input
+   *   after sanitising a bit
+   * this function is kept here, however, for consistency
+   *   and future extensions
+   *
+   * NOTE: user is responsible for giving a proper datatype
+   * NOTE: this function allocates memory for value,
+   *   which should be deallocated afterwards by the caller
+   */
+  size_t n_chars;
+  STRLEN(n_chars, dtype);
+  // check empty string,
+  //   since empty datatype is obviously strange
+  if(n_chars == 0){
+    return -1;
+  }
+  // +1 for NUL
+  CALLOC(*value, n_chars+1, sizeof(char));
+  // the last character is NUL, just in case
+  //   (calloc should assign 0 already)
+  (*value)[n_chars] = NUL;
+  // copy dtype
+  MEMCPY(*value, dtype, sizeof(char)*n_chars);
+  return 0;
+}
+
+static int create_fortran_order_value(char **value, const bool is_fortran_order){
+  /*
+   * Create a value of a dictionary key: "fortran_order",
+   * which is True or False with last NUL
+   *
+   * NOTE: this function allocates memory for value,
+   *   which should be deallocated afterwards by the caller
+   */
+  if(is_fortran_order){
+    const char string[] = {"True"};
+    size_t n_chars;
+    STRLEN(n_chars, string);
+    // "True" + NUL
+    CALLOC(*value, n_chars+1, sizeof(char));
+    MEMCPY(*value, string, sizeof(char)*n_chars);
+    (*value)[n_chars] = NUL;
+  }else{
+    const char string[] = {"False"};
+    size_t n_chars;
+    STRLEN(n_chars, string);
+    // "False" + NUL
+    CALLOC(*value, n_chars+1, sizeof(char));
+    MEMCPY(*value, string, sizeof(char)*n_chars);
+    (*value)[n_chars] = NUL;
+  }
+  return 0;
+}
+
+static int create_shape_value(char **value, const size_t ndim, const size_t *shape){
+  /*
+   * Create a value of a dictionary key: "shape"
+   * Examples:
+   * 0D array: ndim = 0, *dims = NULL  -> ()
+   * 1D array: ndim = 1, *dims = {5}   -> (5,)
+   * 2D array: ndim = 2, *dims = {5,2} -> (5,2,)
+   * NOTE: from left to right,
+   *       from outer (less contiguous) to inner (contiguous)
+   *
+   * NOTE: this function allocates memory for value,
+   *   which should be deallocated afterwards by the caller
+   */
+  // check whether shape contains only non-negative integers
+  // numpy does accpect tuples containing 0 as shape,
+  //   but they are not useful in most cases
+  for(size_t i = 0; i < ndim; i++){
+    if(shape[i] <= 0){
+      return -1;
+    }
+  }
+  // 1. count number of digits (e.g., 5: 1 digit, 15: 2 digits)
+  //   of shape in each direction
+  size_t *n_digits = NULL;
+  CALLOC(n_digits, ndim, sizeof(size_t));
+  for(size_t i = 0; i < ndim; i++){
+    // simple way to compute digits,
+    //   dividing by 10 as many as possible
+    size_t num = shape[i];
+    n_digits[i] = 1;
+    while(num /= 10){
+      n_digits[i]++;
+    }
+  }
+  // 2. compute total number of characters
+  //   i.e., memory size to be allocated
+  size_t n_chars = 3; // at least "(", ")", and "NUL" exist
+  for(size_t i = 0; i < ndim; i++){
+    // number of digits in i-th direction
+    // with comma (+1)
+    n_chars += n_digits[i]+1;
+  }
+  // 3. allocate memory and assign values
+  CALLOC(*value, n_chars, sizeof(char));
+  for(size_t i = 0, offset = 1; i < ndim; i++){
+    // assign size of the array in each direction to "value"
+    //   after converting the integer to characters, e.g., 128 -> "128"
+    char *buf = NULL;
+    size_t n_digit = n_digits[i];
+    // + "," and "NUL"
+    CALLOC(buf, n_digit+2, sizeof(char));
+    // including ","
+    SNPRINTF(buf, n_digit+2, "%zu,", shape[i]);
+    // copy result excluding NUL
+    MEMCPY((*value)+offset, buf, sizeof(char)*(n_digit+1));
+    offset += n_digit+1;
+    FREE(buf);
+  }
+  // first character is a parenthesis
+  (*value)[        0] = '(';
+  // last-1 character is a parenthesis
+  (*value)[n_chars-2] = ')';
+  // last character is NUL
+  (*value)[n_chars-1] = NUL;
+  // clean-up buffer
+  FREE(n_digits);
+  return 0;
+}
+
+static int create_dict(char **dict, size_t *n_dict, const size_t ndim, const size_t *shape, const char dtype[], const bool is_fortran_order){
+  /*
+   * "dict" contains information which is necessary to recover the original array,
+   *   1. datatype, 2. memory ordering, and 3. shape of the data
+   * It is a python-like dictionary, whose structure is a pair of key and value:
+   * --- -------------- -----------------------------------------------------------------
+   *  1.  descr         Datatype, e.g., '<f8', 'float64'
+   *  2.  fortran_order Memory order, True or False (usually False)
+   *  3.  shape         A tuple having number of elements in each direction, e.g., (5,2,)
+   * See corresponding function for how they are created
+   * Also the number of elements of the dict is returned (to be consistent with "create_padding")
+   */
+  // keys, which are completely fixed
+  const char descr_key[] = {"'descr'"};
+  const char fortran_order_key[] = {"'fortran_order'"};
+  const char shape_key[] = {"'shape'"};
+  // values, which depend on inputs
+  char *descr_value = NULL;
+  char *fortran_order_value = NULL;
+  char *shape_value = NULL;
+  // 1. create dictionary values,
+  //   in which inputs are evaluated and sanitised
+  if(create_descr_value(&descr_value, dtype) != 0){
+    return -1;
+  }
+  if(create_fortran_order_value(&fortran_order_value, is_fortran_order) != 0){
+    return -1;
+  }
+  if(create_shape_value(&shape_value, ndim, shape) != 0){
+    return -1;
+  }
+  // 2. assign all elements (strings) which compose dict
+  const size_t n_elements_dict = 13;
+  char **elements = NULL;
+  CALLOC(elements, n_elements_dict, sizeof(char *));
+  // initial wave bracket
+  elements[ 0] = "{";
+  // 'descr':descr_value
+  elements[ 1] = (char *)descr_key;
+  elements[ 2] = ":";
+  elements[ 3] = (char *)descr_value;
+  elements[ 4] = ",";
+  // 'fortran_order':fortran_order_value
+  elements[ 5] = (char *)fortran_order_key;
+  elements[ 6] = ":";
+  elements[ 7] = (char *)fortran_order_value;
+  elements[ 8] = ",";
+  // 'shape':shape_value
+  elements[ 9] = (char *)shape_key;
+  elements[10] = ":";
+  elements[11] = (char *)shape_value;
+  // final wave bracket
+  elements[12] = "}";
+  // 3. check total number of characters of
+  //   {'descr':VALUE,'fortran_order':VALUE,'shape':VALUE}
+  //   to allocate dict
+  // NOTE: n_chars_dict is the number of characters of dict
+  //   INCLUDING the last NUL, while n_dict = strlen(dict),
+  //   EXCLUDING the last NUL.
+  //   Thus n_dict = n_chars_dict - 1
+  size_t n_chars_dict = 0;
+  for(size_t i = 0; i < n_elements_dict; i++){
+    // check each element and sum up its number of characters
+    size_t n_chars;
+    STRLEN(n_chars, elements[i]);
+    n_chars_dict += n_chars;
+  }
+  // last NUL
+  n_chars_dict += 1;
+  // 4. allocate dict and assign above "elements"
+  CALLOC(*dict, n_chars_dict, sizeof(char));
+  for(size_t i = 0, offset = 0; i < n_elements_dict; i++){
+    size_t n_chars;
+    STRLEN(n_chars, elements[i]);
+    MEMCPY((*dict)+offset, elements[i], sizeof(char)*n_chars);
+    offset += n_chars;
+  }
+  (*dict)[n_chars_dict-1] = NUL;
+  // clean-up all working memories
+  FREE(descr_value);
+  FREE(fortran_order_value);
+  FREE(shape_value);
+  FREE(elements);
+  // as the length of "dict", use length WITHOUT NUL,
+  // i.e. strlen(*dict)
+  STRLEN(*n_dict, *dict);
+  LOGGING("dict: %s\n", *dict);
+  LOGGING("size: %zu\n", *n_dict);
+  return 0;
+}
+
+static int create_padding(uint8_t **padding, size_t *n_padding, uint8_t *major_version, const size_t n_dict){
+  /*
+   * The following relation holds for the header size
+   *   size_header =
+   *     + sizeof(magic string)      (= 6            bytes)
+   *     + sizeof(major_version)     (= 1            byte )
+   *     + sizeof(minor_version)     (= 1            byte )
+   *     + sizeof(header_len)        (= 2 or 4       bytes)
+   *     + sizeof(char)*strlen(dict) (= strlen(dict) bytes)
+   *     + sizeof(uint8_t)*n_padding (= n_padding    bytes)
+   *   is divisible by 64
+   * Definitely this is not generally true, and we need some paddings
+   *   consisting of some (0 or more) spaces ' ' and one newline '\n',
+   *   whose length (number of elements) is returned
+   */
+  // size of each element
+  size_t n_magic_string;
+  STRLEN(n_magic_string, magic_string);
+  size_t size_magic_string  = sizeof(char)*n_magic_string;
+  size_t size_major_version = sizeof(uint8_t);
+  size_t size_minor_version = sizeof(uint8_t);
+  size_t size_dict          = sizeof(char)*n_dict;
+  // reject too large dict
+  if(size_dict > UINT_MAX-64){
+    return -1;
+  }
+  // large portion of the header is occupied by dict
+  // so check dict size, and if it is larger than USHRT_MAX-64,
+  //   use major_version = 2
+  size_t size_header_len;
+  if(size_dict > USHRT_MAX-64){
+    *major_version = 2;
+    size_header_len = sizeof(uint32_t);
+  }else{
+    *major_version = 1;
+    size_header_len = sizeof(uint16_t);
+  }
+  // size of all data except padding
+  size_t size_except_padding =
+    +size_magic_string
+    +size_major_version
+    +size_minor_version
+    +size_header_len
+    +size_dict;
+  // decide total size of the header, which should be 64 x N
+  // increase total size by 64 until becoming larger than size_except_padding
+  // NOTE: size_padding == 0 is NOT allowed since '\n' is necessary at the end
+  //   thus the condition to continue loop is "<=", not "<"
+  size_t size_header = 0;
+  while(size_header <= size_except_padding){
+    size_header += 64;
+  }
+  size_t size_padding = size_header-size_except_padding;
+  *n_padding = size_padding/sizeof(uint8_t);
+  CALLOC(*padding, *n_padding, sizeof(uint8_t));
+  // many ' 's: 0x20
+  memset(*padding, 0x20, sizeof(uint8_t)*(*n_padding-1));
+  // last '\n': 0x0a
+  (*padding)[*n_padding-1] = 0x0a;
+  LOGGING("padding, size: %zu\n", *n_padding);
+  return 0;
+}
+
+static int create_header_len(uint8_t **header_len, size_t *n_header_len, const uint8_t major_version, const size_t n_dict, const size_t n_padding){
+  /*
+   * In short, HEADER_LEN = n_dict + n_padding,
+   * which should be written as a little-endian form
+   *   (irrespective to the architecture)
+   */
+  // For safety, reject too large dict / padding sizes
+  // Here "too large" means header size (not data size)
+  //   is larger than approx. 20GB, which would not happen normally
+  if(n_dict >= UINT_MAX/2){
+    return -1;
+  }
+  if(n_padding >= UINT_MAX/2){
+    return -1;
+  }
+  if(major_version == 2){
+    // major version 2, use uint32_t to store header_len
+    uint32_t header_len_uint32_t = (uint32_t)n_dict+(uint32_t)n_padding;
+    *n_header_len = sizeof(uint32_t)/sizeof(uint8_t);
+    CALLOC(*header_len, *n_header_len, sizeof(uint8_t));
+    MEMCPY(*header_len, &header_len_uint32_t, *n_header_len);
+    LOGGING("header_len (uint32_t): %u\n", header_len_uint32_t);
+  }else{
+    // major version 1, use uint16_t to store header_len
+    uint16_t header_len_uint16_t = (uint16_t)n_dict+(uint16_t)n_padding;
+    *n_header_len = sizeof(uint16_t)/sizeof(uint8_t);
+    CALLOC(*header_len, *n_header_len, sizeof(uint8_t));
+    MEMCPY(*header_len, &header_len_uint16_t, *n_header_len);
+    LOGGING("header_len (uint16_t): %hu\n", header_len_uint16_t);
+  }
+  if(is_big_endian()){
+    // if the architecture is big-endian
+    // convert HEADER_LEN to little endian
+    if(convert_endian(header_len, sizeof(*header_len)) != 0){
+      return -1;
+    }
+  }
+  return 0;
+}
+
+size_t simple_npyio_w_header(const size_t ndim, const size_t *shape, const char dtype[], const bool is_fortran_order, FILE *fp){
+  /*
+   * From input information (ndim, shape, dtype, is_fortran_order),
+   *   create and output "header", which is enough and sufficient information consists of a *.npy file
+   * NPY file format is defined here:
+   *   https://numpy.org/devdocs/reference/generated/numpy.lib.format.html#format-version-1-0
+   *
+   * The size of the "header", defined as "header_size",
+   *   is returned, which could be useful by the user
+   *
+   * Header of a npy file contains these 6 data (n_datasets):
+   *       -----NAME----- --TYPE-- -# OF ELEMENTS- -------SIZE-------
+   * No. 0 magic_string   char     6               6 bytes
+   * No. 1 major_version  uint8_t  1               1 byte
+   * No. 2 minor_version  uint8_t  1               1 byte
+   * No. 3 header_len     uint8_t  n_header_len    n_header_len bytes
+   * No. 4 dict           char     n_dict          n_dict bytes
+   * No. 5 padding        uint8_t  n_padding       n_padding bytes
+   *
+   * See below and corresponding function for details of each member
+   */
+  /* prepare all datasets (from No. 0 to No. 5) */
+  // No. 0: magic_string
+  size_t n_magic_string;
+  STRLEN(n_magic_string, magic_string);
+  // No. 2: minor_version, always 0
+  const uint8_t minor_version = 0;
+  // No. 4: dictionary (and its size)
+  char *dict = NULL;
+  size_t n_dict;
+  if(create_dict(&dict, &n_dict, ndim, shape, dtype, is_fortran_order) != 0){
+    return 0;
+  }
+  // No. 1: major_version
+  // and
+  // No. 5: padding (and its size)
+  uint8_t major_version;
+  uint8_t *padding = NULL;
+  size_t n_padding;
+  if(create_padding(&padding, &n_padding, &major_version, n_dict) != 0){
+    return 0;
+  }
+  // No. 3: header_len
+  uint8_t *header_len = NULL;
+  size_t n_header_len;
+  if(create_header_len(&header_len, &n_header_len, major_version, n_dict, n_padding) != 0){
+    return 0;
+  }
+  /* dump all information to a buffer "header" and compute total size "header_size" */
+  uint8_t *header = NULL;
+  size_t header_size;
+  size_t header_nitems;
+  {
+    const size_t n_datasets = 6;
+    size_t *sizes   = NULL;
+    size_t *offsets = NULL;
+    CALLOC(sizes,   n_datasets, sizeof(size_t));
+    CALLOC(offsets, n_datasets, sizeof(size_t));
+    sizes[0] = sizeof(   char)*n_magic_string;
+    sizes[1] = sizeof(uint8_t);
+    sizes[2] = sizeof(uint8_t);
+    sizes[3] = sizeof(uint8_t)*n_header_len;
+    sizes[4] = sizeof(   char)*n_dict;
+    sizes[5] = sizeof(uint8_t)*n_padding;
+    // total size
+    header_size = 0;
+    for(uint8_t i = 0; i < n_datasets; i++){
+      header_size += sizes[i];
+    }
+    // offsets
+    offsets[0] = 0;
+    for(uint8_t i = 1; i < n_datasets; i++){
+      offsets[i] = offsets[i-1]+sizes[i-1];
+    }
+    // allocate buffer to store whole header
+    header_nitems = header_size/sizeof(uint8_t);
+    CALLOC(header, header_nitems, sizeof(uint8_t));
+    // write all information to a buffer "header"
+    MEMCPY(header+offsets[0], magic_string,   sizes[0]);
+    MEMCPY(header+offsets[1], &major_version, sizes[1]);
+    MEMCPY(header+offsets[2], &minor_version, sizes[2]);
+    MEMCPY(header+offsets[3], header_len,     sizes[3]);
+    MEMCPY(header+offsets[4], dict,           sizes[4]);
+    MEMCPY(header+offsets[5], padding,        sizes[5]);
+    // clean-up buffers
+    FREE(sizes);
+    FREE(offsets);
+  }
+  LOGGING("header_size: %zu\n", header_size);
+  /* write to the given file stream */
+  FWRITE(header, sizeof(uint8_t), header_nitems, fp);
+  // clean-up all buffers
+  FREE(dict);
+  FREE(padding);
+  FREE(header_len);
+  FREE(header);
+  return header_size;
+}
+
+#undef LOGGING
+
+#undef NUL
+
+#undef CALLOC
+#undef FREE
+#undef FREAD
+#undef FWRITE
+#undef SNPRINTF
+#undef MEMCPY
+#undef MEMCMP
+#undef STRLEN
+#undef STRTOK
+#undef STRTOLL
+
