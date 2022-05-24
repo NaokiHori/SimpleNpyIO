@@ -36,4 +36,4 @@ To read a dataset from a file, what you need to do is to prepare a similar simpl
    fclose(fp);
    // whatever you want
 
-Please refer to the `documentation <https://naokihori.github.io/SimpleNpyIO/html/index.html>`_ for usages.
+Please refer to the `documentation <https://naokihori.github.io/SimpleNpyIO>`_ for usages.
