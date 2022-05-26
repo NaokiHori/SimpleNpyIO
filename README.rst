@@ -8,7 +8,7 @@ In order to write a `npy` file, all you need to do is:
 
 .. code-block:: c
 
-   FILE *fp = fopen("test.npy", "w");
+   FILE *fp = fopen("test.npy", "w"); // user should check fp == NULL
    simple_npyio_w_header(ndim, shape, dtype, is_fortran_order, fp);
    fwrite(data, sizeof(int), length, fp);
    fclose(fp);
@@ -27,12 +27,14 @@ To read a dataset from a file, what you need to do is to prepare a similar simpl
 
 .. code-block:: c
 
-   FILE *fp = fopen("test.npy", "r");
+   FILE *fp = fopen("test.npy", "r"); // user should check fp == NULL
    simple_npyio_r_header(&ndim, &shape, &dtype, &is_fortran_order, fp);
    // prepare buffer to receive data
    //   for instance, if ndim == 2,
-   //   int *data = calloc(shape[0]*shape[1], sizeof(int));
-   fread(data, sizeof(int), length, fp);
+   //     size_t nitems = shape[0]*shape[1]
+   //     size_t *data = calloc(nitems, sizeof(int));
+   // user should specify appropriate data type from "dtype"
+   fread(data, sizeof(int), nitems, fp);
    fclose(fp);
    // whatever you want
 

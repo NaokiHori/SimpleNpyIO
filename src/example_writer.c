@@ -4,6 +4,9 @@
 #include "simple_npyio.h"
 
 
+// two-dimensional array
+#define NDIM 2
+
 int example_writer(const char fname[]){
   /* create dataset to be written */
   //  0  1  2  3  4
@@ -30,31 +33,31 @@ int example_writer(const char fname[]){
       printf("%3d%c", data[j * nx + i], eol);
     }
   }
-  /* variables which are needed to create npy file */
-  // two-dimensional array
-  const size_t ndim = 2;
-  // size in each dimension, assigned later
-  size_t *shape = NULL;
+  // size in each dimension, outer first, to inner last
+  const size_t shape[NDIM] = {ny, nx};
+  // the above is a safer option so to say
+  // you can use the following a bit flexible statement instead,
+  //   AS LONG AS YOU ALLOCATE (and free) IT PROPERLY
+  // "shape" should have memory of sizeof(size_t)*NDIM,
+  //   but checking it internally is almost impossible
+  // size_t *shape = NULL;
+  // also be sure to free memory later
+  /* size_t *shape = calloc(NDIM, sizeof(size_t)); */
+  /* if(shape == NULL){ */
+  /*   printf("memory allocation error (shape)\n"); */
+  /*   exit(EXIT_FAILURE); */
+  /* } */
   // datatype, see https://numpy.org/doc/stable/reference/arrays.dtypes.html
   const char dtype[] = {"'<i4'"};
   // memory ordering, usually false
   const bool is_fortran_order = false;
-  /* shape depends on your data */
-  shape = calloc(ndim, sizeof(size_t));
-  if(shape == NULL){
-    printf("memory allocation error (shape)\n");
-    exit(EXIT_FAILURE);
-  }
-  // size in each dimension, assigned later
-  shape[0] = ny; // outer first
-  shape[1] = nx; // inner last
   /* open file, create/write header, write data, and close it */
   FILE *fp = fopen(fname, "w");
   if(fp == NULL){
     printf("file open error: %s\n", fname);
     exit(EXIT_FAILURE);
   }
-  size_t header_size = simple_npyio_w_header(ndim, shape, dtype, is_fortran_order, fp);
+  size_t header_size = simple_npyio_w_header(NDIM, shape, dtype, is_fortran_order, fp);
   if(header_size == 0){
     printf("simple_npyio_w_header failed\n");
     exit(EXIT_FAILURE);
@@ -64,8 +67,10 @@ int example_writer(const char fname[]){
   fwrite(data, sizeof(int), nx*ny, fp);
   fclose(fp);
   /* clean-up memories */
-  free(shape);
   free(data);
+  /* free(shape); */
   return 0;
 }
+
+#undef NDIM
 

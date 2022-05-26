@@ -48,6 +48,11 @@ static const char magic_string[] = {"\x93NUMPY"};
 
 // fread
 #define FREAD(ptr, size, nitems, stream){                    \
+  if((stream) == NULL){                                      \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);   \
+    fprintf(stderr, "file pointer is NULL\n");               \
+    return -1;                                               \
+  }                                                          \
   errno = 0;                                                 \
   if(fread((ptr), (size), (nitems), (stream)) < (nitems)){   \
     int code = errno;                                        \
@@ -63,6 +68,11 @@ static const char magic_string[] = {"\x93NUMPY"};
 }
 // fwrite
 #define FWRITE(ptr, size, nitems, stream){                   \
+  if((stream) == NULL){                                      \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);   \
+    fprintf(stderr, "file pointer is NULL\n");               \
+    return -1;                                               \
+  }                                                          \
   errno = 0;                                                 \
   if(fwrite((ptr), (size), (nitems), (stream)) < (nitems)){  \
     int code = errno;                                        \
@@ -123,18 +133,20 @@ static const char magic_string[] = {"\x93NUMPY"};
 }
 
 // strlen
-#define STRLEN(retval, s){                                 \
-  errno = 0;                                               \
-  if((s) == NULL){                                         \
-    int code = errno;                                      \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__); \
-    fprintf(stderr, "strlen failed\n");                    \
-    fprintf(stderr, "%d:%s\n", code, strerror(code));      \
-    fprintf(stderr, "\ts: %s, %p\n", #s, s);               \
-    return -1;                                             \
-  }else{                                                   \
-    (retval) = strlen(s);                                  \
-  }                                                        \
+#define STRLEN(retval, s){                                   \
+  if((s) == NULL){                                           \
+    return -1;                                               \
+  }else{                                                     \
+    errno = 0;                                               \
+    (retval) = strlen(s);                                    \
+    if(errno != 0){                                          \
+      int code = errno;                                      \
+      fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__); \
+      fprintf(stderr, "strlen failed\n");                    \
+      fprintf(stderr, "%d:%s\n", code, strerror(code));      \
+      fprintf(stderr, "\ts: %s, %p\n", #s, s);               \
+    }                                                        \
+  }                                                          \
 }
 // strtok
 #define STRTOK(buf, str, sep){                             \
@@ -200,12 +212,55 @@ static int convert_endian(void *val, const size_t size){
   return 0;
 }
 
+static int find_pattern(size_t *location, const void *p0, const size_t size_p0, const void *p1, const size_t size_p1){
+  /*
+   * try to find a pattern "p1" in "p0"
+   *   and return its location IN BYTES
+   * -1 is returned when error is detected
+   *   if the pattern is not found
+   * note that sizes of "p0" and "p1" are
+   *   in BYTES, NOT number of elements
+   * thus it is necessary to divide by the
+   *   sizeof original datatype
+   *   after the result is obtained
+   */
+  // NULL check
+  if(p0 == NULL || p1 == NULL){
+    return -1;
+  }
+  // p0 is shorter than p1, return not found
+  if(size_p0 < size_p1){
+    return -1;
+  }
+  // e.g., size_p0 = 7, size_p1 = 3
+  //     0 1 2 3 4 5 6
+  // p0: a b c d e f g
+  // p1: x y z
+  //       x y z
+  //         x y z
+  //           x y z
+  //             x y z
+  //     ^       ^
+  //    imin    imax
+  size_t imin = 0;
+  size_t imax = size_p0-size_p1;
+  for(size_t i = imin; i <= imax; i++){
+    int retval;
+    MEMCMP(retval, p0+i, p1, size_p1);
+    if(retval == 0){
+      *location = i;
+      return 0;
+    }
+  }
+  return -1;
+}
+
 /* reader */
 
 #if defined(LOGGING_SIMPLE_NPYIO)
-#define LOGGING(...) { \
+#define LOGGING(...){                        \
   fprintf(stderr, "[SIMPLE_NPYIO reader] "); \
-  fprintf(stderr, __VA_ARGS__); \
+  fprintf(stderr, __VA_ARGS__);              \
 }
 #else
 #define LOGGING(...)
@@ -220,9 +275,9 @@ static int load_magic_string(size_t *buf_size, FILE *fp){
    */
   size_t nitems;
   STRLEN(nitems, magic_string);
-  uint8_t *buf = NULL;
   // allocate buffer and load from file
   // NOTE: file pointer is moved forward as well
+  uint8_t *buf = NULL;
   CALLOC(buf, nitems, sizeof(uint8_t));
   FREAD(buf, sizeof(uint8_t), nitems, fp);
   *buf_size = sizeof(uint8_t)*nitems;
@@ -432,49 +487,6 @@ static int extract_dict(char **dict, uint8_t *dict_and_padding, size_t header_le
   return 0;
 }
 
-static int find_pattern(size_t *location, const void *p0, const size_t size_p0, const void *p1, const size_t size_p1){
-  /*
-   * try to find a pattern "p1" in "p0"
-   *   and return its location IN BYTES
-   * -1 is returned when error is detected
-   *   if the pattern is not found
-   * note that sizes of "p0" and "p1" are
-   *   in BYTES, NOT number of elements
-   * thus it is necessary to divide by the
-   *   sizeof original datatype
-   *   after the result is obtained
-   */
-  // NULL check
-  if(p0 == NULL || p1 == NULL){
-    return -1;
-  }
-  // p0 is shorter than p1, return not found
-  if(size_p0 < size_p1){
-    return -1;
-  }
-  // e.g., size_p0 = 7, size_p1 = 3
-  //     0 1 2 3 4 5 6
-  // p0: a b c d e f g
-  // p1: x y z
-  //       x y z
-  //         x y z
-  //           x y z
-  //             x y z
-  //     ^       ^
-  //    imin    imax
-  size_t imin = 0;
-  size_t imax = size_p0-size_p1;
-  for(size_t i = imin; i <= imax; i++){
-    int retval;
-    MEMCMP(retval, p0+i, p1, size_p1);
-    if(retval == 0){
-      *location = i;
-      return 0;
-    }
-  }
-  return -1;
-}
-
 static int find_dict_value(const char key[], char **val, const char *dict){
   /*
    * dictionary consists of pairs of "key" and "val"
@@ -578,16 +590,11 @@ static int find_dict_value(const char key[], char **val, const char *dict){
   return 0;
 }
 
-static int extract_shape(size_t *ndim, size_t **shape, const char *dict){
+static int extract_shape(size_t *ndim, size_t **shape, const char *val){
   /*
-   * find a key 'shape' and extract its value
-   * the returned value must be (as long as I know) a python tuple,
+   * parse given python tuple "val" and obtain shape of data,
    *   which is necessary to be parsed to re-construct the data
    */
-  char *val = NULL;
-  if(find_dict_value("'shape'", &val, dict) < 0){
-    return -1;
-  }
   // 1. check number of dimension (ndim) to store shape
   {
     char *str = NULL;
@@ -654,7 +661,6 @@ static int extract_shape(size_t *ndim, size_t **shape, const char *dict){
     }
     FREE(str);
   }
-  FREE(val);
   LOGGING("ndim: %zu\n", *ndim);
   for(size_t i = 0; i < *ndim; i++){
     LOGGING("shape[%zu]: %zu\n", i, (*shape)[i]);
@@ -662,51 +668,82 @@ static int extract_shape(size_t *ndim, size_t **shape, const char *dict){
   return 0;
 }
 
-static int extract_dtype(char **dtype, const char *dict){
+static int extract_dtype(char **dtype, const char *val){
   /*
    * find a key 'descr' and extract its value
    * return obtained value directly since it is enough
    */
-  char *val = NULL;
-  if(find_dict_value("'descr'", &val, dict) < 0){
-    return -1;
-  }
-  *dtype = val;
+  size_t n_chars_val;
+  STRLEN(n_chars_val, val);
+  CALLOC(*dtype, n_chars_val+1, sizeof(char));
+  memcpy(*dtype, val, sizeof(char)*n_chars_val);
+  (*dtype)[n_chars_val] = NUL;
   LOGGING("dtype: %s\n", *dtype);
   return 0;
 }
 
-static int extract_is_fortran_order(bool *is_fortran_order, const char *dict){
+static int extract_is_fortran_order(bool *is_fortran_order, const char *val){
   /*
    * find a key 'fortran_order' and extract its value
    * check whether it is "True" or "False",
    *   convert it to boolean and return
    */
-  char *val = NULL;
-  if(find_dict_value("'fortran_order'", &val, dict) < 0){
-    return -1;
-  }
+  bool  true_is_found = false;
+  bool false_is_found = false;
   // try to find "True"
-  const char pattern[] = {"True"};
-  size_t location;
-  size_t n_chars_val;
-  size_t n_chars_pattern;
-  STRLEN(n_chars_val, val);
-  STRLEN(n_chars_pattern, pattern);
-  int retval = find_pattern(
-      &location,
-      (void *)val,
-      sizeof(char)*n_chars_val,
-      (void *)pattern,
-      sizeof(char)*n_chars_pattern
-  );
-  // if successful, true; otherwise false
-  if(retval < 0){
-    *is_fortran_order = false;
-  }else{
-    *is_fortran_order = true;
+  {
+    const char pattern[] = {"True"};
+    size_t location;
+    size_t n_chars_val;
+    size_t n_chars_pattern;
+    STRLEN(n_chars_val, val);
+    STRLEN(n_chars_pattern, pattern);
+    int retval = find_pattern(
+        &location,
+        (void *)val,
+        sizeof(char)*n_chars_val,
+        (void *)pattern,
+        sizeof(char)*n_chars_pattern
+    );
+    if(retval < 0){
+      true_is_found = false;
+    }else{
+      true_is_found = true;
+    }
   }
-  FREE(val);
+  // try to find "False"
+  {
+    const char pattern[] = {"False"};
+    size_t location;
+    size_t n_chars_val;
+    size_t n_chars_pattern;
+    STRLEN(n_chars_val, val);
+    STRLEN(n_chars_pattern, pattern);
+    int retval = find_pattern(
+        &location,
+        (void *)val,
+        sizeof(char)*n_chars_val,
+        (void *)pattern,
+        sizeof(char)*n_chars_pattern
+    );
+    if(retval < 0){
+      false_is_found = false;
+    }else{
+      false_is_found = true;
+    }
+  }
+  // check two results and decide final outcome
+  if(true_is_found && false_is_found){
+    LOGGING("both True and False are found: %s\n", val);
+    return -1;
+  }else if((!true_is_found) && (!false_is_found)){
+    LOGGING("none of True and False are found: %s\n", val);
+    return -1;
+  }else if(true_is_found){
+    *is_fortran_order = true;
+  }else{
+    *is_fortran_order = false;
+  }
   LOGGING("is_fortran_order: %u\n", *is_fortran_order);
   return 0;
 }
@@ -757,6 +794,8 @@ size_t simple_npyio_r_header(size_t *ndim, size_t **shape, char **dtype, bool *i
   /* step 2: extract dictionary */
   // extract dict from dict + padding
   // also non-crutial spaces (spaces outside quotations) are eliminated
+  //   e.g., {'descr': '<i4','fortran_order': False,'shape': (3, 5, )}
+  //      -> {'descr':'<i4','fortran_order':False,'shape':(3,5,)}
   char *dict = NULL;
   if(extract_dict(&dict, dict_and_padding, header_len) < 0){
     return 0;
@@ -764,14 +803,38 @@ size_t simple_npyio_r_header(size_t *ndim, size_t **shape, char **dtype, bool *i
   FREE(dict_and_padding);
   /* step 3: extract information which are needed to reconstruct array */
   /* in particular, shape, datatype, and memory order of the array */
-  if(extract_shape(ndim, shape, dict) < 0){
-    return 0;
+  // shape
+  {
+    char *val = NULL;
+    if(find_dict_value("'shape'", &val, dict) < 0){
+      return 0;
+    }
+    if(extract_shape(ndim, shape, val) < 0){
+      return 0;
+    }
+    FREE(val);
   }
-  if(extract_dtype(dtype, dict) < 0){
-    return 0;
+  // descr (data type)
+  {
+    char *val = NULL;
+    if(find_dict_value("'descr'", &val, dict) < 0){
+      return 0;
+    }
+    if(extract_dtype(dtype, val) < 0){
+      return 0;
+    }
+    FREE(val);
   }
-  if(extract_is_fortran_order(is_fortran_order, dict) < 0){
-    return 0;
+  // fortran order (memory order)
+  {
+    char *val = NULL;
+    if(find_dict_value("'fortran_order'", &val, dict) < 0){
+      return 0;
+    }
+    if(extract_is_fortran_order(is_fortran_order, val) < 0){
+      return 0;
+    }
+    FREE(val);
   }
   // clean-up buffer
   FREE(dict);
@@ -856,11 +919,14 @@ static int create_shape_value(char **value, const size_t ndim, const size_t *sha
    * 0D array: ndim = 0, *dims = NULL  -> ()
    * 1D array: ndim = 1, *dims = {5}   -> (5,)
    * 2D array: ndim = 2, *dims = {5,2} -> (5,2,)
-   * NOTE: from left to right,
-   *       from outer (less contiguous) to inner (contiguous)
+   * from left to right,
+   *   from outer (less contiguous) to inner (contiguous)
    *
    * NOTE: this function allocates memory for value,
    *   which should be deallocated afterwards by the caller
+   *
+   * WARNING: the user of this function is responsible for
+   *   allocating memory for "shape" properly
    */
   // check whether shape contains only non-negative integers
   // numpy does accpect tuples containing 0 as shape,
