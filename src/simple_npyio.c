@@ -24,8 +24,8 @@ static const char magic_string[] = {"\x93NUMPY"};
   if(((ptr) = calloc((count), (size))) == NULL){               \
     int code = errno;                                          \
     fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
-    fprintf(stderr, "calloc failed (error code: %d)\n", code); \
-    fprintf(stderr, "%s\n", strerror(code));                   \
+    fprintf(stderr, "calloc failed\n");                        \
+    fprintf(stderr, "%d:%s\n", code, strerror(code));          \
     fprintf(stderr, "\tptr:   %s, %p\n",  #ptr,   ptr);        \
     fprintf(stderr, "\tcount: %s, %zu\n", #count, count);      \
     fprintf(stderr, "\tsize:  %s, %zu\n", #size,  size);       \
@@ -33,129 +33,138 @@ static const char magic_string[] = {"\x93NUMPY"};
   }                                                            \
 }
 // free
-#define FREE(ptr){                                           \
+#define FREE(ptr){                                         \
+  errno = 0;                                               \
+  free((ptr));                                             \
+  if(errno != 0){                                          \
+    int code = errno;                                      \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__); \
+    fprintf(stderr, "free failed\n");                      \
+    fprintf(stderr, "%d:%s\n", code, strerror(code));      \
+    fprintf(stderr, "\tptr: %s, %p\n", #ptr, ptr);         \
+    return -1;                                             \
+  }                                                        \
+}
+
+// fread
+#define FREAD(ptr, size, nitems, stream){                    \
   errno = 0;                                                 \
-  free((ptr));                                               \
-  if(errno != 0){                                            \
+  if(fread((ptr), (size), (nitems), (stream)) < (nitems)){   \
     int code = errno;                                        \
     fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);   \
-    fprintf(stderr, "free failed (error code: %d)\n", code); \
-    fprintf(stderr, "\tptr: %s, %p\n", #ptr, ptr);           \
+    fprintf(stderr, "fread failed\n");                       \
+    fprintf(stderr, "%d:%s\n", code, strerror(code));        \
+    fprintf(stderr, "\tptr:    %s, %p\n",  #ptr,    ptr);    \
+    fprintf(stderr, "\tsize:   %s, %zu\n", #size,   size);   \
+    fprintf(stderr, "\tnitems: %s, %zu\n", #nitems, nitems); \
+    fprintf(stderr, "\tstream: %s, %p\n",  #stream, stream); \
+    return -1;                                               \
+  }                                                          \
+}
+// fwrite
+#define FWRITE(ptr, size, nitems, stream){                   \
+  errno = 0;                                                 \
+  if(fwrite((ptr), (size), (nitems), (stream)) < (nitems)){  \
+    int code = errno;                                        \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);   \
+    fprintf(stderr, "fwrite failed\n");                      \
+    fprintf(stderr, "%d:%s\n", code, strerror(code));        \
+    fprintf(stderr, "\tptr:    %s, %p\n",  #ptr,    ptr);    \
+    fprintf(stderr, "\tsize:   %s, %zu\n", #size,   size);   \
+    fprintf(stderr, "\tnitems: %s, %zu\n", #nitems, nitems); \
+    fprintf(stderr, "\tstream: %s, %p\n",  #stream, stream); \
     return -1;                                               \
   }                                                          \
 }
 
-// fread
-#define FREAD(ptr, size, nitems, stream) {                    \
+// snprintf
+#define SNPRINTF(str, size, ...){                             \
   errno = 0;                                                  \
-  if(fread((ptr), (size), (nitems), (stream)) < (nitems)){    \
+  if(snprintf((str), (size), __VA_ARGS__) != (int)(size-1)) { \
     int code = errno;                                         \
     fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);    \
-    fprintf(stderr, "fread failed (error code: %d)\n", code); \
-    fprintf(stderr, "\tptr:    %s, %p\n",  #ptr,    ptr);     \
+    fprintf(stderr, "snprintf failed\n");                     \
+    fprintf(stderr, "%d:%s\n", code, strerror(code));         \
+    fprintf(stderr, "\tstr:    %s, %p\n",  #str,    str);     \
     fprintf(stderr, "\tsize:   %s, %zu\n", #size,   size);    \
-    fprintf(stderr, "\tnitems: %s, %zu\n", #nitems, nitems);  \
-    fprintf(stderr, "\tstream: %s, %p\n",  #stream, stream);  \
     return -1;                                                \
   }                                                           \
 }
-// fwrite
-#define FWRITE(ptr, size, nitems, stream) {                    \
-  errno = 0;                                                   \
-  if(fwrite((ptr), (size), (nitems), (stream)) < (nitems)){    \
-    int code = errno;                                          \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
-    fprintf(stderr, "fwrite failed (error code: %d)\n", code); \
-    fprintf(stderr, "\tptr:    %s, %p\n",  #ptr,    ptr);      \
-    fprintf(stderr, "\tsize:   %s, %zu\n", #size,   size);     \
-    fprintf(stderr, "\tnitems: %s, %zu\n", #nitems, nitems);   \
-    fprintf(stderr, "\tstream: %s, %p\n",  #stream, stream);   \
-    return -1;                                                 \
-  }                                                            \
-}
-
-// snprintf
-#define SNPRINTF(str, size, ...) {                               \
-  errno = 0;                                                     \
-  if(snprintf((str), (size), __VA_ARGS__) != (int)(size-1)) {    \
-    int code = errno;                                            \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);       \
-    fprintf(stderr, "snprintf failed (error code: %d)\n", code); \
-    fprintf(stderr, "\tstr:    %s, %p\n",  #str,    str);        \
-    fprintf(stderr, "\tsize:   %s, %zu\n", #size,   size);       \
-    return -1;                                                   \
-  }                                                              \
-}
 
 // memcpy
-#define MEMCPY(dst, src, n) {                                  \
-  errno = 0;                                                   \
-  memcpy((dst), (src), (n));                                   \
-  if(errno != 0){                                              \
-    int code = errno;                                          \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
-    fprintf(stderr, "memcpy failed (error code: %d)\n", code); \
-    fprintf(stderr, "\tdst: %s, %p\n",  #dst, dst);            \
-    fprintf(stderr, "\tsrc: %s, %p\n",  #src, src);            \
-    fprintf(stderr, "\tn:   %s, %zu\n", #n,   n);              \
-    return -1;                                                 \
-  }                                                            \
+#define MEMCPY(dst, src, n){                               \
+  errno = 0;                                               \
+  memcpy((dst), (src), (n));                               \
+  if(errno != 0){                                          \
+    int code = errno;                                      \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__); \
+    fprintf(stderr, "memcpy failed\n");                    \
+    fprintf(stderr, "%d:%s\n", code, strerror(code));      \
+    fprintf(stderr, "\tdst: %s, %p\n",  #dst, dst);        \
+    fprintf(stderr, "\tsrc: %s, %p\n",  #src, src);        \
+    fprintf(stderr, "\tn:   %s, %zu\n", #n,   n);          \
+    return -1;                                             \
+  }                                                        \
 }
 // memcmp
-#define MEMCMP(retval, s1, s2, n) {                            \
-  errno = 0;                                                   \
-  (retval) = memcmp((s1), (s2), (n));                          \
-  if(errno != 0){                                              \
-    int code = errno;                                          \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
-    fprintf(stderr, "memcmp failed (error code: %d)\n", code); \
-    fprintf(stderr, "\ts1: %s, %p\n",  #s1, s1);               \
-    fprintf(stderr, "\ts2: %s, %p\n",  #s2, s2);               \
-    fprintf(stderr, "\tn:  %s, %zu\n", #n,  n);                \
-    return -1;                                                 \
-  }                                                            \
+#define MEMCMP(retval, s1, s2, n){                         \
+  errno = 0;                                               \
+  (retval) = memcmp((s1), (s2), (n));                      \
+  if(errno != 0){                                          \
+    int code = errno;                                      \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__); \
+    fprintf(stderr, "memcmp failed\n");                    \
+    fprintf(stderr, "%d:%s\n", code, strerror(code));      \
+    fprintf(stderr, "\ts1: %s, %p\n",  #s1, s1);           \
+    fprintf(stderr, "\ts2: %s, %p\n",  #s2, s2);           \
+    fprintf(stderr, "\tn:  %s, %zu\n", #n,  n);            \
+    return -1;                                             \
+  }                                                        \
 }
 
 // strlen
-#define STRLEN(retval, s) {                                    \
-  errno = 0;                                                   \
-  if((s) == NULL){                                             \
-    int code = errno;                                          \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
-    fprintf(stderr, "strlen failed (error code: %d)\n", code); \
-    fprintf(stderr, "\ts: %s, %p\n", #s, s);                   \
-    return -1;                                                 \
-  }else{                                                       \
-    (retval) = strlen(s);                                      \
-  }                                                            \
+#define STRLEN(retval, s){                                 \
+  errno = 0;                                               \
+  if((s) == NULL){                                         \
+    int code = errno;                                      \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__); \
+    fprintf(stderr, "strlen failed\n");                    \
+    fprintf(stderr, "%d:%s\n", code, strerror(code));      \
+    fprintf(stderr, "\ts: %s, %p\n", #s, s);               \
+    return -1;                                             \
+  }else{                                                   \
+    (retval) = strlen(s);                                  \
+  }                                                        \
 }
 // strtok
-#define STRTOK(buf, str, sep) {                                \
-  errno = 0;                                                   \
-  buf = strtok((str), (sep));                                  \
-  if(errno != 0){                                              \
-    int code = errno;                                          \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
-    fprintf(stderr, "strtok failed (error code: %d)\n", code); \
-    fprintf(stderr, "\tbuf: %s, %p\n", #buf, buf);             \
-    fprintf(stderr, "\tstr: %s, %p\n", #str, str);             \
-    fprintf(stderr, "\tsep: %s, %p\n", #sep, sep);             \
-    return -1;                                                 \
-  }                                                            \
+#define STRTOK(buf, str, sep){                             \
+  errno = 0;                                               \
+  buf = strtok((str), (sep));                              \
+  if(errno != 0){                                          \
+    int code = errno;                                      \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__); \
+    fprintf(stderr, "strtok failed\n");                    \
+    fprintf(stderr, "%d:%s\n", code, strerror(code));      \
+    fprintf(stderr, "\tbuf: %s, %p\n", #buf, buf);         \
+    fprintf(stderr, "\tstr: %s, %p\n", #str, str);         \
+    fprintf(stderr, "\tsep: %s, %p\n", #sep, sep);         \
+    return -1;                                             \
+  }                                                        \
 }
 // strtoll
-#define STRTOLL(retval, str, endptr, base) {                   \
-  errno = 0;                                                   \
-  retval = strtoll((str), (endptr), (base));                   \
-  if(errno != 0){                                              \
-    int code = errno;                                          \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
-    fprintf(stderr, "strtok failed (error code: %d)\n", code); \
-    fprintf(stderr, "\tstr:    %s, %p\n", #str, str);          \
-    fprintf(stderr, "\tendptr: %s, %p\n", #endptr, endptr);    \
-    fprintf(stderr, "\tbase:   %s, %d\n", #base, base);        \
-    return -1;                                                 \
-  }                                                            \
+#define STRTOLL(retval, str, endptr, base){                 \
+  errno = 0;                                                \
+  retval = strtoll((str), (endptr), (base));                \
+  if(errno != 0){                                           \
+    int code = errno;                                       \
+    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);  \
+    fprintf(stderr, "strtok failed\n");                     \
+    fprintf(stderr, "%d:%s\n", code, strerror(code));       \
+    fprintf(stderr, "\tstr:    %s, %p\n", #str, str);       \
+    fprintf(stderr, "\tendptr: %s, %p\n", #endptr, endptr); \
+    fprintf(stderr, "\tbase:   %s, %d\n", #base, base);     \
+    return -1;                                              \
+  }                                                         \
 }
 
 /* auxiliary functions which are used by writer and reader */
@@ -189,49 +198,6 @@ static int convert_endian(void *val, const size_t size){
   MEMCPY(val, buf, size);
   FREE(buf);
   return 0;
-}
-
-static int find_pattern(size_t *location, const void *p0, const size_t size_p0, const void *p1, const size_t size_p1){
-  /*
-   * try to find a pattern "p1" in "p0"
-   *   and return its location IN BYTES
-   * -1 is returned when error is detected
-   *   if the pattern is not found
-   * note that sizes of "p0" and "p1" are
-   *   in BYTES, NOT number of elements
-   * thus it is necessary to divide by the
-   *   sizeof original datatype
-   *   after the result is obtained
-   */
-  // NULL check
-  if(p0 == NULL || p1 == NULL){
-    return -1;
-  }
-  // p0 is shorter than p1, return not found
-  if(size_p0 < size_p1){
-    return -1;
-  }
-  // e.g., size_p0 = 7, size_p1 = 3
-  //     0 1 2 3 4 5 6
-  // p0: a b c d e f g
-  // p1: x y z
-  //       x y z
-  //         x y z
-  //           x y z
-  //             x y z
-  //     ^       ^
-  //    imin    imax
-  size_t imin = 0;
-  size_t imax = size_p0-size_p1;
-  for(size_t i = imin; i <= imax; i++){
-    int retval;
-    MEMCMP(retval, p0+i, p1, size_p1);
-    if(retval == 0){
-      *location = i;
-      return 0;
-    }
-  }
-  return -1;
 }
 
 /* reader */
@@ -464,6 +430,49 @@ static int extract_dict(char **dict, uint8_t *dict_and_padding, size_t header_le
   FREE(is_dict);
   LOGGING("dict: %s\n", *dict);
   return 0;
+}
+
+static int find_pattern(size_t *location, const void *p0, const size_t size_p0, const void *p1, const size_t size_p1){
+  /*
+   * try to find a pattern "p1" in "p0"
+   *   and return its location IN BYTES
+   * -1 is returned when error is detected
+   *   if the pattern is not found
+   * note that sizes of "p0" and "p1" are
+   *   in BYTES, NOT number of elements
+   * thus it is necessary to divide by the
+   *   sizeof original datatype
+   *   after the result is obtained
+   */
+  // NULL check
+  if(p0 == NULL || p1 == NULL){
+    return -1;
+  }
+  // p0 is shorter than p1, return not found
+  if(size_p0 < size_p1){
+    return -1;
+  }
+  // e.g., size_p0 = 7, size_p1 = 3
+  //     0 1 2 3 4 5 6
+  // p0: a b c d e f g
+  // p1: x y z
+  //       x y z
+  //         x y z
+  //           x y z
+  //             x y z
+  //     ^       ^
+  //    imin    imax
+  size_t imin = 0;
+  size_t imax = size_p0-size_p1;
+  for(size_t i = imin; i <= imax; i++){
+    int retval;
+    MEMCMP(retval, p0+i, p1, size_p1);
+    if(retval == 0){
+      *location = i;
+      return 0;
+    }
+  }
+  return -1;
 }
 
 static int find_dict_value(const char key[], char **val, const char *dict){
