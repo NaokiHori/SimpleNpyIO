@@ -65,5 +65,7 @@ html_static_path = ['_static']
 rst_prolog = '''
 .. role:: c-lang(code)
     :language: c
+.. role:: sh(code)
+    :language: sh
 '''
 
