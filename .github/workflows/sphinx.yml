@@ -9,24 +9,19 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v1
+      with:
+        repository: 'NaokiHori/SimpleNpyIO'
+        ref: 'master'
     - name: Build documentation
       uses: NaokiHori/sphinx-action@master
       with:
         docs-folder: "docs/"
-    - name: Create artifact
-      uses: actions/upload-artifact@v1
-      with:
-        name: DocumentationHTML
-        path: docs/build/html/
     - name: Commit documentation changes
       run: |
-        git clone https://github.com/NaokiHori/SimpleNpyIO.git --branch master --single-branch master
         git switch -c gh-pages
         cd docs/
         sudo /bin/mv build/html/* .
