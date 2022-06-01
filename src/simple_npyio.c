@@ -181,13 +181,13 @@ static const char magic_string[] = {"\x93NUMPY"};
 
 /* auxiliary functions which are used by writer and reader */
 
-// https://github.com/NaokiHori/CSnippets/blob/master/src/check_endian.c
+// https://gist.github.com/NaokiHori/91c560a59f4e4ef37eb33b8e1c055fbc
 static bool is_big_endian(void){
   const uint16_t val = 1 << 8;
   return (bool)(((uint8_t *)(&val))[0]);
 }
 
-// https://github.com/NaokiHori/CSnippets/blob/master/src/convert_endian.c
+// https://gist.github.com/NaokiHori/81ad6e1562e1ec23253246902c281cc2
 static int convert_endian(void *val, const size_t size){
   // NULL check
   if(val == NULL){
