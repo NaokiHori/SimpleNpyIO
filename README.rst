@@ -13,7 +13,7 @@ SimpleNpyIO
 .. |License| image:: https://img.shields.io/github/license/NaokiHori/SimpleNpyIO
 .. _License: https://opensource.org/licenses/MIT
 
-.. |DocDeployment| image:: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/documentation.yml/badge.svg
+.. |DocDeployment| image:: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/documentation.yml/badge.svg?branch=master
 .. _DocDeployment: https://naokihori.github.io/SimpleNpyIO/
 
 .. |WorkflowStatus| image:: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/ci.yml/badge.svg?branch=master
