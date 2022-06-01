@@ -1,0 +1,163 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - include/**
+      - src/**
+      - cunit/**
+
+jobs:
+
+  cunit:
+    name: Cunit
+    runs-on: ubuntu-latest
+    container:
+      image: naokihori/alpine-cunit:1.0
+      volumes:
+        - :/home
+      options: --rm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+        with:
+          repository: 'NaokiHori/SimpleNpyIO'
+          ref: 'master'
+      - name: Build and Run Tests
+        run: |
+          cd cunit; make clean; make
+          for f in *.out;
+          do
+            ./$f
+          done
+      - name: Merge xml files
+        run: |
+          cd cunit
+          apk add npm
+          npm install -g junit-report-merger
+          jrm ../cunit.xml *.xml
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: cunit
+          path: cunit.xml
+
+  valgrind:
+    name: Valgrind
+    runs-on: ubuntu-latest
+    container:
+      image: naokihori/alpine-valgrind:1.0
+      volumes:
+        - :/home
+      options: --rm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+        with:
+          repository: 'NaokiHori/SimpleNpyIO'
+          ref: 'master'
+      - name: Build and Run Tests
+        run: |
+          ls -l
+          make clean
+          make
+          valgrind \
+            --leak-check=full \
+            --error-exitcode=1 \
+            --xml=yes \
+            --xml-file=valgrind.xml \
+            ./a.out
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: valgrind
+          path: valgrind.xml
+
+  publish:
+    name: Publish CI results
+    runs-on: ubuntu-latest
+    needs: [cunit, valgrind]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+        with:
+          repository: 'NaokiHori/SimpleNpyIO'
+          ref: 'master'
+      # import artifacts generated in the previous steps
+      - name: Download artifacts (cunit)
+        uses: actions/download-artifact@v3
+        with:
+          name: cunit
+      - name: Download artifacts (valgrind)
+        uses: actions/download-artifact@v3
+        with:
+          name: valgrind
+      # analyse cunit results
+      - name: Check Cunit Results
+        uses: EnricoMi/publish-unit-test-result-action@v1
+        if: always()
+        with:
+          files: cunit.xml
+          json_file: cunit.json
+      # create badge, cunit
+      - name: Create cunit badge
+        run: |
+          # check <testsuites> tag, which should exist
+          # if not, error and abort here
+          str=$(grep "<testsuites " cunit.xml)
+          # parse
+          n_failures=$(echo $str | cut -f2 -d " " | tr -d -c 0-9)
+          n_error=$(echo $str | cut -f3 -d " " | tr -d -c 0-9)
+          n_test=$(echo $str | cut -f4 -d " " | tr -d -c 0-9)
+          if [ $(($n_error+$n_failures)) -ne 0 ]; then
+            color="red"
+          else
+            color="green"
+          fi
+          # prepare url
+          label="Tests"
+          message="$n_test%20tests,%20$n_failures%20failures,%20$n_error%20errors"
+          link=https://img.shields.io/badge/$label-$message-$color.svg
+          echo $link
+          wget --output-document=badge_cunit.svg "$link"
+      # create badge, valgrind
+      - name: Create valgrind badge
+        run: |
+          # find "error" tag in valgrind.xml
+          # if not found, no memory leaks
+          label="MemoryLeak"
+          if grep "<error>" valgrind.xml > /dev/null; then
+            message="Failed"
+            color="red"
+          else
+            message="Passing"
+            color="green"
+          fi
+          link=https://img.shields.io/badge/$label-$message-$color.svg
+          wget --output-document=badge_valgrind.svg $link
+      # collect all artifacts (test logs and badges) which will be officially published
+      - name: Collect artifacts
+        run: |
+          sudo mkdir -p .github/workflows/artifacts/
+          sudo /bin/mv cunit.xml .github/workflows/artifacts/
+          sudo /bin/mv cunit.json .github/workflows/artifacts/
+          sudo /bin/mv valgrind.xml .github/workflows/artifacts/
+          sudo /bin/mv badge_*.svg .github/workflows/artifacts/
+      # start tracking artifacts
+      - name: Track artifacts
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git switch -c artifacts
+          git add .github/workflows/artifacts/*
+          git commit -m "Update CI artifacts" -a || true
+      # push artifacts to "artifacts" branch
+      - name: Push artifacts
+        uses: ad-m/github-push-action@master
+        with:
+          branch: artifacts
+          directory: "."
+          github_token: ${{ secrets.MY_GITHUB_TOKEN }}
+          force: true

@@ -2,6 +2,32 @@
 SimpleNpyIO
 ###########
 
+|License|_
+
+|DocDeployment|_
+
+|WorkflowStatus|_ |UnitTest|_ |MemoryLeak|_
+
+|LastCommit|_
+
+.. |License| image:: https://img.shields.io/github/license/NaokiHori/SimpleNpyIO
+.. _License: https://opensource.org/licenses/MIT
+
+.. |DocDeployment| image:: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/documentation.yml/badge.svg
+.. _DocDeployment: https://naokihori.github.io/SimpleNpyIO/
+
+.. |WorkflowStatus| image:: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/ci.yml/badge.svg?branch=master
+.. _WorkflowStatus: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/ci.yml
+
+.. |UnitTest| image:: https://github.com/NaokiHori/SimpleNpyIO/blob/artifacts/.github/workflows/artifacts/badge_cunit.svg
+.. _UnitTest: https://github.com/NaokiHori/Alpine-Dockerfiles/tree/cunit
+
+.. |MemoryLeak| image:: https://github.com/NaokiHori/SimpleNpyIO/blob/artifacts/.github/workflows/artifacts/badge_valgrind.svg
+.. _MemoryLeak: https://github.com/NaokiHori/Alpine-Dockerfiles/tree/valgrind
+
+.. |LastCommit| image:: https://img.shields.io/github/last-commit/NaokiHori/SimpleNpyIO/master
+.. _LastCommit: https://github.com/NaokiHori/SimpleNpyIO/commits/master
+
 This library contains a few simple scripts (written in `C99`) to write and read files in `npy format <https://numpy.org/doc/stable/reference/generated/numpy.lib.format.html>`_.
 
 In order to write a `npy` file, all you need to do is:
