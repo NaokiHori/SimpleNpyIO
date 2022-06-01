@@ -297,3 +297,12 @@ Reader
 
    A similar and complete script can be found in `src/example_reader.c <https://github.com/NaokiHori/SimpleNpyIO/blob/master/src/example_reader.c>`_, which was used in the :ref:`quick start <quick_start>`.
 
+-------------
+Tests (CUnit)
+-------------
+
+Based on a test frame work `CUnit <http://cunit.sourceforge.net>`_, unit tests are performed to keep the quality of the library, which can be found under `cunit <https://github.com/NaokiHori/SimpleNpyIO/tree/master/cunit>`_ directory.
+
+Although normal users do not have to look into it, it is possible to extend this library and try more extensive tests by themselves.
+Please refer to `this page <https://github.com/NaokiHori/Alpine-Dockerfiles/tree/cunit>`_ for more details.
+

@@ -30,6 +30,20 @@ SimpleNpyIO
 
 This library contains a few simple scripts (written in `C99`) to write and read files in `npy format <https://numpy.org/doc/stable/reference/generated/numpy.lib.format.html>`_.
 
+************
+Installation
+************
+
+Copy a source file ``src/simple_npyio.c`` and a corresponding header file ``include/simple_npyio.h`` to your project.
+Now all functions are ready to be used.
+
+Writing and reading examples can be found in ``src/example_writer.c`` and ``src/example_reader.c``, respectively.
+They are, however, just for convenience (to see how they work) and not necessary to use this library.
+
+*****
+Usage
+*****
+
 In order to write a `npy` file, all you need to do is:
 
 .. code-block:: c
@@ -64,4 +78,14 @@ To read a dataset from a file, what you need to do is to prepare a similar simpl
    fclose(fp);
    // whatever you want
 
-Please refer to the `documentation <https://naokihori.github.io/SimpleNpyIO>`_ for usages.
+Please refer to the `documentation <https://naokihori.github.io/SimpleNpyIO>`_ for more detailed usages.
+
+*************
+Tests (CUnit)
+*************
+
+Based on a test frame work `CUnit <http://cunit.sourceforge.net>`_, unit tests are performed to keep the quality of the library, which can be found under ``cunit`` directory.
+
+Although normal users do not have to look into it, it is possible to extend this library and try more extensive tests by themselves.
+Please refer to `this page <https://github.com/NaokiHori/Alpine-Dockerfiles/tree/cunit>`_ for more details.
+
