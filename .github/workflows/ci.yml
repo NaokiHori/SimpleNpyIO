@@ -8,6 +8,7 @@ on:
       - include/**
       - src/**
       - cunit/**
+      - .github/workflows/ci.yml
 
 jobs:
 
@@ -129,10 +130,10 @@ jobs:
           # if not found, no memory leaks
           label="MemoryLeak"
           if grep "<error>" valgrind.xml > /dev/null; then
-            message="Failed"
+            message="failed"
             color="red"
           else
-            message="Passing"
+            message="passing"
             color="green"
           fi
           link=https://img.shields.io/badge/$label-$message-$color.svg

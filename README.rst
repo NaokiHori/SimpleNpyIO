@@ -4,9 +4,9 @@ SimpleNpyIO
 
 |License|_
 
-|DocDeployment|_
+|DocDeployment|_ |WorkflowStatus|_
 
-|WorkflowStatus|_ |UnitTest|_ |MemoryLeak|_
+|UnitTest|_ |MemoryLeak|_
 
 |LastCommit|_
 
@@ -44,6 +44,10 @@ They are, however, just for convenience (to see how they work) and not necessary
 Usage
 *****
 
+=========
+Serial IO
+=========
+
 In order to write a `npy` file, all you need to do is:
 
 .. code-block:: c
@@ -79,6 +83,45 @@ To read a dataset from a file, what you need to do is to prepare a similar simpl
    // whatever you want
 
 Please refer to the `documentation <https://naokihori.github.io/SimpleNpyIO>`_ for more detailed usages.
+
+======================
+Parallel IO (Advanced)
+======================
+
+With `Message Passing Interface (MPI) <https://www.mpi-forum.org>`_, the same thing can be done in parallel.
+The following code is much complicated compared to the serial version, which mainly caused by MPI-IO, not because of the current library.
+
+Writing a two dimensional array which is contiguous in `x (i)` direction while decomposed in `y (j)` direction to a `npy` file consists of two steps,
+
+1. Writing header by master process
+
+   .. code-block:: c
+
+      MPI_Comm_rank(MPI_COMM_WORLD, &mpirank);
+      size_t header_size;
+      if(mpirank == 0){
+        FILE *fp = fopen("test.npy", "w"); // user should check fp == NULL
+        header_size = simple_npyio_w_header(ndim, shape, dtype, is_fortran_order, fp);
+        fclose(fp);
+      }
+
+2. Writing data in parallel
+
+.. code-block:: c
+
+   // share header size among all processes
+   const size_t n_bytes = sizeof(header_size)/sizeof(char);
+   MPI_Bcast(&header_size, count, MPI_CHAR, 0, MPI_COMM_WORLD);
+   // open file and move file pointer to the end of header
+   const int amode = MPI_MODE_APPEND | MPI_MODE_WRONLY;
+   MPI_File fh = NULL;
+   MPI_File_open(MPI_COMM_WORLD, fname, amode, MPI_INFO_NULL, &fh);
+   // offset from the beginning of file
+   int offset = sizeof(int)*itot*joffset+(int)header_size;
+   // parallel write
+   MPI_File_write_at_all(fh, offset, data, jsize*itot, MPI_INT, MPI_STATUS_IGNORE);
+   // do not forget to close file
+   MPI_File_close(&fh);
 
 *************
 Tests (CUnit)
