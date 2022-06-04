@@ -128,7 +128,7 @@ jobs:
         run: |
           # find "error" tag in valgrind.xml
           # if not found, no memory leaks
-          label="MemoryLeak"
+          label="MemoryLeakCheck"
           if grep "<error>" valgrind.xml > /dev/null; then
             message="failed"
             color="red"

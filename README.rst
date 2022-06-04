@@ -107,21 +107,21 @@ Writing a two dimensional array which is contiguous in `x (i)` direction while d
 
 2. Writing data in parallel
 
-.. code-block:: c
+   .. code-block:: c
 
-   // share header size among all processes
-   const size_t n_bytes = sizeof(header_size)/sizeof(char);
-   MPI_Bcast(&header_size, count, MPI_CHAR, 0, MPI_COMM_WORLD);
-   // open file and move file pointer to the end of header
-   const int amode = MPI_MODE_APPEND | MPI_MODE_WRONLY;
-   MPI_File fh = NULL;
-   MPI_File_open(MPI_COMM_WORLD, fname, amode, MPI_INFO_NULL, &fh);
-   // offset from the beginning of file
-   int offset = sizeof(int)*itot*joffset+(int)header_size;
-   // parallel write
-   MPI_File_write_at_all(fh, offset, data, jsize*itot, MPI_INT, MPI_STATUS_IGNORE);
-   // do not forget to close file
-   MPI_File_close(&fh);
+      // share header size among all processes
+      const size_t n_bytes = sizeof(header_size)/sizeof(char);
+      MPI_Bcast(&header_size, count, MPI_CHAR, 0, MPI_COMM_WORLD);
+      // open file and move file pointer to the end of header
+      const int amode = MPI_MODE_APPEND | MPI_MODE_WRONLY;
+      MPI_File fh = NULL;
+      MPI_File_open(MPI_COMM_WORLD, "test.npy", amode, MPI_INFO_NULL, &fh);
+      // offset from the beginning of file
+      int offset = sizeof(int)*itot*joffset+(int)header_size;
+      // parallel write
+      MPI_File_write_at_all(fh, offset, data, jsize*itot, MPI_INT, MPI_STATUS_IGNORE);
+      // do not forget to close file
+      MPI_File_close(&fh);
 
 *************
 Tests (CUnit)
