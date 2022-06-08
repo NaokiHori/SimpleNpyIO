@@ -1,4 +1,4 @@
-PRJCT_ROOT := ..
+PRJCT_ROOT := ../..
 CC 		     := cc
 CFLAGS     := -std=c99 -Wall -Wextra
 # directly include src of the project

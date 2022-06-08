@@ -7,7 +7,7 @@ on:
     paths:
       - include/**
       - src/**
-      - cunit/**
+      - test/**
       - .github/workflows/ci.yml
 
 jobs:
@@ -28,17 +28,17 @@ jobs:
           ref: 'master'
       - name: Build and Run Tests
         run: |
-          cd cunit; make clean; make
+          cd test/unit; make clean; make
           for f in *.out;
           do
             ./$f
           done
       - name: Merge xml files
         run: |
-          cd cunit
+          cd test/unit
           apk add npm
           npm install -g junit-report-merger
-          jrm ../cunit.xml *.xml
+          jrm ../../cunit.xml *.xml
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
@@ -119,7 +119,7 @@ jobs:
           fi
           # prepare url
           label="Tests"
-          message="$n_test%20tests,%20$n_failures%20failures,%20$n_error%20errors"
+          message="${n_test}tests,${n_failures}failures,${n_error}errors"
           link=https://img.shields.io/badge/$label-$message-$color.svg
           echo $link
           wget --output-document=badge_cunit.svg "$link"

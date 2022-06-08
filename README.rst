@@ -28,21 +28,11 @@ SimpleNpyIO
 .. |LastCommit| image:: https://img.shields.io/github/last-commit/NaokiHori/SimpleNpyIO/master
 .. _LastCommit: https://github.com/NaokiHori/SimpleNpyIO/commits/master
 
-This library contains a few simple scripts (written in `C99`) to write and read files in `npy format <https://numpy.org/doc/stable/reference/generated/numpy.lib.format.html>`_.
+********
+Overview
+********
 
-************
-Installation
-************
-
-Copy a source file ``src/simple_npyio.c`` and a corresponding header file ``include/simple_npyio.h`` to your project.
-Now all functions are ready to be used.
-
-Writing and reading examples can be found in ``src/example_writer.c`` and ``src/example_reader.c``, respectively.
-They are, however, just for convenience (to see how they work) and not necessary to use this library.
-
-*****
-Usage
-*****
+A simple script (written in `C99`) to write and read files in `npy format <https://numpy.org/doc/stable/reference/generated/numpy.lib.format.html>`_.
 
 =========
 Serial IO
@@ -89,7 +79,7 @@ Parallel IO (Advanced)
 ======================
 
 With `Message Passing Interface (MPI) <https://www.mpi-forum.org>`_, the same thing can be done in parallel.
-The following code is much complicated compared to the serial version, which mainly caused by MPI-IO, not because of the current library.
+The following code is much more complicated compared to the serial version, which mainly caused by MPI-IO, not because of the current library.
 
 Writing a two dimensional array which is contiguous in `x (i)` direction while decomposed in `y (j)` direction to a `npy` file consists of two steps,
 
@@ -123,9 +113,77 @@ Writing a two dimensional array which is contiguous in `x (i)` direction while d
       // do not forget to close file
       MPI_File_close(&fh);
 
-*************
-Tests (CUnit)
-*************
+***********
+Quick start
+***********
+
+With `Docker <https://www.docker.com>`_ and `git <https://git-scm.com>`_, one can try this library easily and safely by
+
+.. code-block:: console
+
+   $ mkdir /path/to/your/working/directory
+
+   $ cd /path/to/your/working/directory
+
+   $ git clone https://github.com/NaokiHori/SimpleNpyIO
+
+   $ cd SimpleNpyIO
+
+   $ docker build -t simplenpyio:latest .
+
+   $ docker run -it --rm -v $(PWD):/home simplenpyio:latest
+
+   # make all
+
+   # ./a.out
+
+Without Docker, one needs a C compiler (later than C99), `git`, and `make` locally installed.
+
+.. code-block:: console
+
+   $ mkdir /path/to/your/working/directory
+
+   $ cd /path/to/your/working/directory
+
+   $ git clone https://github.com/NaokiHori/SimpleNpyIO
+
+   $ cd SimpleNpyIO
+
+   $ make
+
+   $ ./a.out
+
+Both gives the same results:
+
+.. code-block:: text
+
+   data (written):
+     0   1   2   3   4
+     5   6   7   8   9
+    10  11  12  13  14
+   header is successfully written (size: 64)
+   header is successfully loaded  (size: 64)
+   data (loaded):
+     0   1   2   3   4
+     5   6   7   8   9
+    10  11  12  13  14
+
+where a two-dimensional data (shown above) is written to a `npy` file ``example.npy``, which is loaded again to show the second array.
+Please check the `source file <https://github.com/NaokiHori/SimpleNpyIO/blob/master/src/main.c>_` for details.
+
+*************************
+Usage in external library
+*************************
+
+Copy a source file ``src/simple_npyio.c`` and a corresponding header file ``include/simple_npyio.h`` to your project.
+Now all functions are ready to be used.
+
+Writing and reading examples can be found in ``src/main.c``.
+This script exists, however, just for convenience (to see how they work) and not necessary to use this library.
+
+*****
+Tests
+*****
 
 Based on a test frame work `CUnit <http://cunit.sourceforge.net>`_, unit tests are performed to keep the quality of the library, which can be found under ``cunit`` directory.
 
