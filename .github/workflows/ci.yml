@@ -13,7 +13,7 @@ on:
 jobs:
 
   unittest:
-    name: Unit tests
+    name: Unit test
     runs-on: ubuntu-latest
     container:
       image: naokihori/alpine-cunit:1.0
@@ -26,27 +26,55 @@ jobs:
         with:
           repository: 'NaokiHori/SimpleNpyIO'
           ref: 'master'
+      - name: Prepare place to store artifacts
+        run: mkdir artifacts
       - name: Build and Run Tests
         run: |
-          cd test/unit; make clean; make
+          cd test/unit
+          make clean
+          make
           for f in *.out;
           do
             ./$f
           done
-      - name: Merge xml files
+      - name: Convert XML to JSON
+        id: create-json
+        uses: EnricoMi/publish-unit-test-result-action@v1
+        if: always()
+        with:
+          files: test/unit/*.xml
+          json_file: artifacts/unittest.json
+          job_summary: false
+          check_run_annotations: "none"
+      - name: Parse JSON and create badge
         run: |
-          cd test/unit
-          apk add npm
-          npm install -g junit-report-merger
-          jrm ../../cunit.xml *.xml
-      - name: Upload artifacts
+          # extract numbers from JSON
+          tests=${{fromJSON(steps.create-json.outputs.json).stats.tests}}
+          tests_succ=${{fromJSON(steps.create-json.outputs.json).stats.tests_succ}}
+          tests_skip=${{fromJSON(steps.create-json.outputs.json).stats.tests_skip}}
+          tests_fail=${{fromJSON(steps.create-json.outputs.json).stats.tests_fail}}
+          tests_error=${{fromJSON(steps.create-json.outputs.json).stats.tests_error}}
+          # label
+          label="UnitTest"
+          # badge color, red if error, otherwise green
+          if [ $(($tests_skip+$tests_fail+$tests_error)) -ne 0 ]; then
+            color="red"
+          else
+            color="green"
+          fi
+          # message contains results
+          message="${tests}tests,${tests_succ}success"
+          # request badge
+          link=https://img.shields.io/badge/$label-$message-$color.svg
+          wget --output-document=artifacts/badge_unittest.svg "$link"
+      - name: Upload test results
         uses: actions/upload-artifact@v3
         with:
-          name: cunit
-          path: cunit.xml
+          name: unittest
+          path: artifacts
 
   integrationtest:
-    name: Integration tests
+    name: Integration test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -54,12 +82,14 @@ jobs:
         with:
           repository: 'NaokiHori/SimpleNpyIO'
           ref: 'master'
+      - name: Prepare place to store artifacts
+        run: mkdir artifacts
       - name: Build Python
         uses: actions/setup-python@v3
         with:
           python-version: '3.10'
-      - name: Install Numpy
-        run: pip install numpy
+      - name: Install Libraries
+        run: pip install numpy pytest
       - name: Build and Run Tests
         run: |
           # checkout directory
@@ -68,16 +98,50 @@ jobs:
           make clean
           make all
           # create sample npy files using Numpy
-          python3 main.py create
+          python3 create.py
           # load sample npy files, interpret them,
           #   and output them again to the other files
-          for f in *.out; do
+          for f in test*.out; do
             ./$f
           done
           # compare original and dumped arrays
-          # exit(failure) if more than 1 arrays differ
-          # TODO: use pytest
-          python3 main.py compare
+          pytest --junit-xml=integrationtest.xml compare.py
+      - name: Convert XML to JSON
+        id: create-json
+        uses: EnricoMi/publish-unit-test-result-action@v1
+        if: always()
+        with:
+          files: test/integration/*.xml
+          json_file: artifacts/integrationtest.json
+          job_summary: false
+          check_run_annotations: "none"
+      - name: Parse JSON and create badge
+        run: |
+          # extract numbers from JSON
+          # https://docs.github.com/ja/actions/learn-github-actions/expressions#fromjson
+          tests=${{fromJSON(steps.create-json.outputs.json).stats.tests}}
+          tests_succ=${{fromJSON(steps.create-json.outputs.json).stats.tests_succ}}
+          tests_skip=${{fromJSON(steps.create-json.outputs.json).stats.tests_skip}}
+          tests_fail=${{fromJSON(steps.create-json.outputs.json).stats.tests_fail}}
+          tests_error=${{fromJSON(steps.create-json.outputs.json).stats.tests_error}}
+          # label
+          label="IntegrationTest"
+          # badge color, red if error, otherwise green
+          if [ $(($tests_skip+$tests_fail+$tests_error)) -ne 0 ]; then
+            color="red"
+          else
+            color="green"
+          fi
+          # message contains results
+          message="${tests}tests,${tests_succ}success"
+          # request badge
+          link=https://img.shields.io/badge/$label-$message-$color.svg
+          wget --output-document=artifacts/badge_integrationtest.svg "$link"
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: integrationtest
+          path: artifacts
 
   memoryleakcheck:
     name: Memory leak check
@@ -93,22 +157,35 @@ jobs:
         with:
           repository: 'NaokiHori/SimpleNpyIO'
           ref: 'master'
-      - name: Build and Run Tests
+      - name: Prepare place to store artifacts
+        run: mkdir artifacts
+      - name: Run tests and create badge
         run: |
-          ls -l
           make clean
           make
-          valgrind \
+          # badge label
+          label="MemoryLeakCheck"
+          # badge color and message
+          if valgrind \
             --leak-check=full \
             --error-exitcode=1 \
             --xml=yes \
-            --xml-file=valgrind.xml \
-            ./a.out
+            --xml-file=artifacts/valgrind.xml \
+            ./a.out; then
+            color="green"
+            message="passing"
+          else
+            color="red"
+            message="failed"
+          fi
+          # request badge
+          link=https://img.shields.io/badge/$label-$message-$color.svg
+          wget --output-document=artifacts/badge_memoryleakcheck.svg "$link"
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: valgrind
-          path: valgrind.xml
+          name: memoryleakcheck
+          path: artifacts
 
   publish:
     name: Publish CI results
@@ -121,65 +198,25 @@ jobs:
           repository: 'NaokiHori/SimpleNpyIO'
           ref: 'master'
       # import artifacts generated in the previous steps
-      - name: Download artifacts (cunit)
+      - name: Download artifacts (unittest)
         uses: actions/download-artifact@v3
         with:
-          name: cunit
-      - name: Download artifacts (valgrind)
+          name: unittest
+      - name: Download artifacts (integrationtest)
         uses: actions/download-artifact@v3
         with:
-          name: valgrind
-      # analyse cunit results
-      - name: Check Cunit Results
-        uses: EnricoMi/publish-unit-test-result-action@v1
-        if: always()
+          name: integrationtest
+      - name: Download artifacts (memoryleakcheck)
+        uses: actions/download-artifact@v3
         with:
-          files: cunit.xml
-          json_file: cunit.json
-      # create badge, cunit
-      - name: Create cunit badge
-        run: |
-          # check <testsuites> tag, which should exist
-          # if not, error and abort here
-          str=$(grep "<testsuites " cunit.xml)
-          # parse
-          n_failures=$(echo $str | cut -f2 -d " " | tr -d -c 0-9)
-          n_error=$(echo $str | cut -f3 -d " " | tr -d -c 0-9)
-          n_test=$(echo $str | cut -f4 -d " " | tr -d -c 0-9)
-          if [ $(($n_error+$n_failures)) -ne 0 ]; then
-            color="red"
-          else
-            color="green"
-          fi
-          # prepare url
-          label="Tests"
-          message="${n_test}tests,${n_failures}failures,${n_error}errors"
-          link=https://img.shields.io/badge/$label-$message-$color.svg
-          echo $link
-          wget --output-document=badge_cunit.svg "$link"
-      # create badge, valgrind
-      - name: Create valgrind badge
-        run: |
-          # find "error" tag in valgrind.xml
-          # if not found, no memory leaks
-          label="MemoryLeakCheck"
-          if grep "<error>" valgrind.xml > /dev/null; then
-            message="failed"
-            color="red"
-          else
-            message="passing"
-            color="green"
-          fi
-          link=https://img.shields.io/badge/$label-$message-$color.svg
-          wget --output-document=badge_valgrind.svg $link
+          name: memoryleakcheck
       # collect all artifacts (test logs and badges) which will be officially published
       - name: Collect artifacts
         run: |
           sudo mkdir -p .github/workflows/artifacts/
-          sudo /bin/mv cunit.xml .github/workflows/artifacts/
-          sudo /bin/mv cunit.json .github/workflows/artifacts/
-          sudo /bin/mv valgrind.xml .github/workflows/artifacts/
-          sudo /bin/mv badge_*.svg .github/workflows/artifacts/
+          sudo /bin/mv *.xml  .github/workflows/artifacts/
+          sudo /bin/mv *.json .github/workflows/artifacts/
+          sudo /bin/mv *.svg  .github/workflows/artifacts/
       # start tracking artifacts
       - name: Track artifacts
         run: |
@@ -196,3 +233,4 @@ jobs:
           directory: "."
           github_token: ${{ secrets.MY_GITHUB_TOKEN }}
           force: true
+

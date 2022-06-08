@@ -6,7 +6,7 @@ SimpleNpyIO
 
 |DocDeployment|_ |WorkflowStatus|_
 
-|UnitTest|_ |MemoryLeak|_
+|UnitTest|_ |IntegrationTest|_ |MemoryLeak|_
 
 |LastCommit|_
 
@@ -19,10 +19,13 @@ SimpleNpyIO
 .. |WorkflowStatus| image:: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/ci.yml/badge.svg?branch=master
 .. _WorkflowStatus: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/ci.yml
 
-.. |UnitTest| image:: https://github.com/NaokiHori/SimpleNpyIO/blob/artifacts/.github/workflows/artifacts/badge_cunit.svg
-.. _UnitTest: https://github.com/NaokiHori/Alpine-Dockerfiles/tree/cunit
+.. |UnitTest| image:: https://raw.githubusercontent.com/NaokiHori/SimpleNpyIO/artifacts/.github/workflows/artifacts/badge_unittest.svg
+.. _UnitTest: https://github.com/NaokiHori/SimpleNpyIO/tree/artifacts/.github/workflows/artifacts
 
-.. |MemoryLeak| image:: https://github.com/NaokiHori/SimpleNpyIO/blob/artifacts/.github/workflows/artifacts/badge_valgrind.svg
+.. |IntegrationTest| image:: https://raw.githubusercontent.com/NaokiHori/SimpleNpyIO/artifacts/.github/workflows/artifacts/badge_integrationtest.svg
+.. _IntegrationTest: https://github.com/NaokiHori/SimpleNpyIO/tree/artifacts/.github/workflows/artifacts
+
+.. |MemoryLeak| image:: https://github.com/NaokiHori/SimpleNpyIO/blob/artifacts/.github/workflows/artifacts/badge_memoryleakcheck.svg
 .. _MemoryLeak: https://github.com/NaokiHori/Alpine-Dockerfiles/tree/valgrind
 
 .. |LastCommit| image:: https://img.shields.io/github/last-commit/NaokiHori/SimpleNpyIO/master
@@ -169,7 +172,7 @@ Both gives the same results:
     10  11  12  13  14
 
 where a two-dimensional data (shown above) is written to a `npy` file ``example.npy``, which is loaded again to show the second array.
-Please check the `source file <https://github.com/NaokiHori/SimpleNpyIO/blob/master/src/main.c>_` for details.
+Please check the `source file <https://github.com/NaokiHori/SimpleNpyIO/blob/master/src/main.c>`_ for details.
 
 *************************
 Usage in external library
@@ -185,8 +188,17 @@ This script exists, however, just for convenience (to see how they work) and not
 Tests
 *****
 
-Based on a test frame work `CUnit <http://cunit.sourceforge.net>`_, unit tests are performed to keep the quality of the library, which can be found under ``cunit`` directory.
+=========
+Unit test
+=========
 
-Although normal users do not have to look into it, it is possible to extend this library and try more extensive tests by themselves.
-Please refer to `this page <https://github.com/NaokiHori/Alpine-Dockerfiles/tree/cunit>`_ for more details.
+Unit tests are performed automatically using a test framework `CUnit <http://cunit.sourceforge.net>`_.
+The details can be found under `test/unit <https://github.com/NaokiHori/SimpleNpyIO/tree/master/test/unit>_`.
+
+================
+Integration test
+================
+
+Integration tests are performed automatically by comparing `npy` files generated (natively) by Python and this library.
+The details can be found under `test/integration <https://github.com/NaokiHori/SimpleNpyIO/tree/master/test/integration>_`.
 
