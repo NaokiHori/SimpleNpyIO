@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <assert.h>
 #include <math.h>
 #include <complex.h>
 #include "simple_npyio.h"
@@ -33,7 +34,7 @@ static int reader(const char fname[], size_t *ndim, size_t **shape, char **dtype
     printf("memory allocation error (data)\n");
     exit(EXIT_FAILURE);
   }
-  fread(*data, sizeof(mytype), nitems, fp);
+  assert(nitems == fread(*data, sizeof(mytype), nitems, fp));
   fclose(fp);
   return 0;
 }

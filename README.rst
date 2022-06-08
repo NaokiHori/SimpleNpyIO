@@ -63,12 +63,12 @@ To read a dataset from a file, what you need to do is to prepare a similar simpl
 
    FILE *fp = fopen("test.npy", "r"); // user should check fp == NULL
    simple_npyio_r_header(&ndim, &shape, &dtype, &is_fortran_order, fp);
-   // prepare buffer to receive data
+   // Prepare buffer to receive data
    //   for instance, if ndim == 2,
-   //     size_t nitems = shape[0]*shape[1]
-   //     size_t *data = calloc(nitems, sizeof(int));
-   // user should specify appropriate data type from "dtype"
-   fread(data, sizeof(int), nitems, fp);
+   //     size_t nitems = shape[0]*shape[1];
+   //     size_t *data = calloc(nitems, sizeof(type_of_data));
+   // User should specify appropriate data type from "dtype"
+   fread(data, sizeof(type_of_data), nitems, fp);
    fclose(fp);
    // whatever you want
 

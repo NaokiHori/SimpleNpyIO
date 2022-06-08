@@ -12,8 +12,8 @@ on:
 
 jobs:
 
-  cunit:
-    name: Cunit
+  unittest:
+    name: Unit tests
     runs-on: ubuntu-latest
     container:
       image: naokihori/alpine-cunit:1.0
@@ -45,8 +45,42 @@ jobs:
           name: cunit
           path: cunit.xml
 
-  valgrind:
-    name: Valgrind
+  integrationtest:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+        with:
+          repository: 'NaokiHori/SimpleNpyIO'
+          ref: 'master'
+      - name: Build Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+      - name: Install Numpy
+        run: pip install numpy
+      - name: Build and Run Tests
+        run: |
+          # checkout directory
+          cd test/integration
+          # build C library
+          make clean
+          make all
+          # create sample npy files using Numpy
+          python3 main.py create
+          # load sample npy files, interpret them,
+          #   and output them again to the other files
+          for f in *.out; do
+            ./$f
+          done
+          # compare original and dumped arrays
+          # exit(failure) if more than 1 arrays differ
+          # TODO: use pytest
+          python3 main.py compare
+
+  memoryleakcheck:
+    name: Memory leak check
     runs-on: ubuntu-latest
     container:
       image: naokihori/alpine-valgrind:1.0
@@ -79,7 +113,7 @@ jobs:
   publish:
     name: Publish CI results
     runs-on: ubuntu-latest
-    needs: [cunit, valgrind]
+    needs: [unittest, integrationtest, memoryleakcheck]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v1
