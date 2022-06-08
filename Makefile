@@ -1,32 +1,12 @@
 CC       := cc
 CFLAGS   := -O3 -std=c99 -Wall -Wextra -DLOGGING_SIMPLE_NPYIO
-# CFLAGS   := -O0 -g -std=c99 -Wall -Wextra -DLOGGING_SIMPLE_NPYIO
-DEPEND   := -MMD
 INCLUDES := -Iinclude
 SRCSDIR  := src
-OBJSDIR  := obj
-SRCS     := $(foreach dir, $(shell find $(SRCSDIR) -type d), $(wildcard $(dir)/*.c))
-OBJS     := $(addprefix $(OBJSDIR)/, $(subst $(SRCSDIR)/,,$(SRCS:.c=.o)))
-DEPS     := $(addprefix $(OBJSDIR)/, $(subst $(SRCSDIR)/,,$(SRCS:.c=.d)))
-TARGET   := a.out
 
-all: $(TARGET)
-
-$(TARGET): $(OBJS)
-		$(CC) $(CFLAGS) $(DEPEND) -o $@ $^
-
-$(OBJSDIR)/%.o: $(SRCSDIR)/%.c
-		@if [ ! -e `dirname $@` ]; then \
-			mkdir -p `dirname $@`; \
-		fi
-		$(CC) $(CFLAGS) $(DEPEND) $(INCLUDES) -c $< -o $@
+all:
+	$(CC) $(CFLAGS) $(INCLUDES) $(SRCSDIR)/simple_npyio.c $(SRCSDIR)/main.c -o a.out
 
 clean:
-		$(RM) -r $(OBJSDIR) $(TARGET)
+	$(RM) *.out
 
-datadel:
-		$(RM) -r example.npy
-
--include $(DEPS)
-
-.PHONY : all clean datadel
+.PHONY : all clean
