@@ -172,6 +172,17 @@ Both gives the same results:
     10  11  12  13  14
 
 where a two-dimensional data (shown above) is written to a `npy` file ``example.npy``, which is loaded again to show the second array.
+The output file can be easily inspected by using python, in particular by
+
+.. code-block:: python
+
+   import numpy as np
+
+   data = np.load("example.npy")
+
+   # whatever you want, e.g.,
+   print(data.shape) # (3, 5)
+
 Please check the `source file <https://github.com/NaokiHori/SimpleNpyIO/blob/master/src/main.c>`_ for details.
 
 *************************
