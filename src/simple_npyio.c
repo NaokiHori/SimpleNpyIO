@@ -11,7 +11,7 @@
 #if CHAR_BIT != 8
 #error "CHAR_BIT is not 8"
 #endif
-// all npy files should start from this magic string
+/* ! all npy files should start from this magic string ! 1 ! */
 static const char magic_string[] = {"\x93NUMPY"};
 // end-of-string
 #define NUL '\x00'
@@ -165,7 +165,7 @@ static int load_magic_string(size_t *buf_size, FILE *fp){
 static int load_versions(uint8_t *major_version, uint8_t *minor_version, size_t *buf_size, FILE *fp){
   /*
    * check version of the file
-   * for now 1.0, 2.0 are considered,
+   * for now 1.0, 2.0, and 3.0 are considered,
    *    and others are rejected
    */
   const size_t nitems_major_version = 1;
@@ -188,8 +188,8 @@ static int load_versions(uint8_t *major_version, uint8_t *minor_version, size_t 
       return -1;
     }
   }
-  // check version 1.x or 2.x
-  if(*major_version != 1 && *major_version != 2){
+  // check version 1.x or 2.x or 3.x
+  if(*major_version != 1 && *major_version != 2 && *major_version != 3){
     ERROR("major version (%u) should be 1 or 2\n", *major_version);
     return -1;
   }
@@ -213,6 +213,7 @@ static int load_header_len(size_t *header_len, size_t *buf_size, size_t major_ve
    *   of the npy file, 2 bytes for major_version = 1,
    *   while 4 bytes for major_version = 2
    */
+  /* ! buffer size differs based on major_version ! 10 ! */
   size_t nitems;
   if(major_version == 1){
     *buf_size = sizeof(uint16_t);
@@ -223,8 +224,7 @@ static int load_header_len(size_t *header_len, size_t *buf_size, size_t major_ve
     // usually 4
     nitems = *buf_size/sizeof(uint8_t);
   }
-  // allocate buffer and
-  //   load corresponding memory size from file
+  /* ! allocate buffer and load corresponding memory size from file ! 8 ! */
   uint8_t *buf = my_calloc(nitems, sizeof(uint8_t));
   {
     size_t retval = fread(buf, sizeof(uint8_t), nitems, fp);
@@ -233,13 +233,11 @@ static int load_header_len(size_t *header_len, size_t *buf_size, size_t major_ve
       return -1;
     }
   }
-  // convert little-endian value to big endian
-  //   if the architecture is big-endian-based
+  /* ! convert endian of loaded buffer when needed ! 3 ! */
   if(is_big_endian()){
     convert_endian(buf, *buf_size);
   }
-  // interpret buffer (sequence of uint8_t)
-  //   as a value of corresponding datatype
+  /* ! interpret buffer (sequence of uint8_t) as a value having corresponding datatype ! 7 ! */
   if(major_version == 1){
     // interpret as a 2-byte value
     *header_len = *((uint16_t *)buf);
@@ -351,8 +349,8 @@ static int extract_dict(char **dict, uint8_t *dict_and_padding, size_t header_le
         is_dict[i-s] = true;
       }else{
         if(is_inside_s_quotations || is_inside_d_quotations){
-          // even if "c" is a space, it is a meaningful information
-          //   since it is inside a pair of quotations (e.g., key including space)
+          // key can contain spaces (not recommended though)
+          // these spaces should NOT be removed
           n_chars_dict++;
           is_dict[i-s] = true;
         }else{
@@ -649,40 +647,29 @@ size_t simple_npyio_r_header(size_t *ndim, size_t **shape, char **dtype, bool *i
   //   by summing up the size of each data "buf_size"
   {
     header_size = 0;
-    // 1. magic string
-    {
-      size_t buf_size;
-      if(load_magic_string(&buf_size, fp) < 0){
-        return 0;
-      }
-      header_size += buf_size;
+    size_t buf_size;
+    /* ! check magic string ! 4 ! */
+    if(load_magic_string(&buf_size, fp) < 0){
+      return 0;
     }
-    // 2. NPY major and minor version
-    {
-      size_t buf_size;
-      if(load_versions(&major_version, &minor_version, &buf_size, fp) < 0){
-        return 0;
-      }
-      header_size += buf_size;
+    header_size += buf_size;
+    /* ! check versions ! 4 ! */
+    if(load_versions(&major_version, &minor_version, &buf_size, fp) < 0){
+      return 0;
     }
-    // 3. HEADER_LEN (see documentation of NPY format)
-    {
-      size_t buf_size;
-      if(load_header_len(&header_len, &buf_size, major_version, fp) < 0){
-        return 0;
-      }
-      header_size += buf_size;
+    header_size += buf_size;
+    /* ! load HEADER_LEN ! 4 ! */
+    if(load_header_len(&header_len, &buf_size, major_version, fp) < 0){
+      return 0;
     }
-    // 4. dictionary and padding
-    {
-      size_t buf_size;
-      if(load_dict_and_padding(&dict_and_padding, &buf_size, header_len, fp) < 0){
-        return 0;
-      }
-      header_size += buf_size;
+    header_size += buf_size;
+    /* ! load dictionary and padding ! 4 ! */
+    if(load_dict_and_padding(&dict_and_padding, &buf_size, header_len, fp) < 0){
+      return 0;
     }
+    header_size += buf_size;
   }
-  /* step 2: extract dictionary */
+  /* ! step 2: extract dictionary ! 9 ! */
   // extract dict from dict + padding
   // also non-crutial spaces (spaces outside quotations) are eliminated
   //   e.g., {'descr': '<i4','fortran_order': False,'shape': (3, 5, )}
@@ -696,6 +683,7 @@ size_t simple_npyio_r_header(size_t *ndim, size_t **shape, char **dtype, bool *i
   /* in particular, shape, datatype, and memory order of the array */
   // shape
   {
+    /* ! extract value of shape ! 8 ! */
     char *val = NULL;
     if(find_dict_value("'shape'", &val, dict) < 0){
       return 0;
@@ -707,6 +695,7 @@ size_t simple_npyio_r_header(size_t *ndim, size_t **shape, char **dtype, bool *i
   }
   // descr (data type)
   {
+    /* ! extract value of descr ! 8 ! */
     char *val = NULL;
     if(find_dict_value("'descr'", &val, dict) < 0){
       return 0;
@@ -718,6 +707,7 @@ size_t simple_npyio_r_header(size_t *ndim, size_t **shape, char **dtype, bool *i
   }
   // fortran order (memory order)
   {
+    /* ! extract value of fortran_order ! 8 ! */
     char *val = NULL;
     if(find_dict_value("'fortran_order'", &val, dict) < 0){
       return 0;
@@ -883,28 +873,32 @@ static int create_dict(char **dict, size_t *n_dict, const size_t ndim, const siz
    * Also the number of elements of the dict is returned (to be consistent with "create_padding")
    */
   // keys, which are completely fixed
-  const char descr_key[] = {"'descr'"};
+  const char descr_key[]         = {"'descr'"};
   const char fortran_order_key[] = {"'fortran_order'"};
-  const char shape_key[] = {"'shape'"};
+  const char shape_key[]         = {"'shape'"};
   // values, which depend on inputs
-  char *descr_value = NULL;
+  char *descr_value         = NULL;
   char *fortran_order_value = NULL;
-  char *shape_value = NULL;
-  // 1. create dictionary values,
-  //   in which inputs are evaluated and sanitised
+  char *shape_value         = NULL;
+  /* 1. create dictionary values,
+   *   in which inputs are evaluated and sanitised
+   */
+  /* ! create value of data type ! 4 ! */
   if(create_descr_value(&descr_value, dtype) != 0){
     ERROR("create_descr_value failed\n");
     return -1;
   }
+  /* ! create value of memory order ! 4 ! */
   if(create_fortran_order_value(&fortran_order_value, is_fortran_order) != 0){
     ERROR("create_fortran_order_value failed\n");
     return -1;
   }
+  /* ! create value of data sizes ! 4 ! */
   if(create_shape_value(&shape_value, ndim, shape) != 0){
     ERROR("create_shape_value failed\n");
     return -1;
   }
-  // 2. assign all elements (strings) which compose dict
+  /* ! 2. assign all elements (strings) which compose dict ! 20 ! */
   const size_t n_elements_dict = 13;
   char **elements = my_calloc(n_elements_dict, sizeof(char *));
   // initial wave bracket
@@ -976,17 +970,18 @@ static int create_padding(uint8_t **padding, size_t *n_padding, uint8_t *major_v
    *   consisting of some (0 or more) spaces ' ' and one newline '\n',
    *   whose length (number of elements) is returned
    */
-  // size of each element
+  /* ! size of each element is computed ! 5 ! */
   size_t n_magic_string = strlen(magic_string);
   size_t size_magic_string  = sizeof(char)*n_magic_string;
   size_t size_major_version = sizeof(uint8_t);
   size_t size_minor_version = sizeof(uint8_t);
   size_t size_dict          = sizeof(char)*n_dict;
-  // reject too large dict
+  /* ! reject too large dict ! 4 ! */
   if(size_dict > UINT_MAX-64){
     ERROR("size of dictionary is huge (%zu)\n", size_dict);
     return -1;
   }
+  /* ! decide major version and datatype of HEADER_LEN ! 11 ! */
   // large portion of the header is occupied by dict
   // so check dict size, and if it is larger than USHRT_MAX-64,
   //   use major_version = 2
@@ -998,14 +993,14 @@ static int create_padding(uint8_t **padding, size_t *n_padding, uint8_t *major_v
     *major_version = 1;
     size_header_len = sizeof(uint16_t);
   }
-  // size of all data except padding
+  /* ! compute size of all data except padding ! 6 ! */
   size_t size_except_padding =
     +size_magic_string
     +size_major_version
     +size_minor_version
     +size_header_len
     +size_dict;
-  // decide total size of the header, which should be 64 x N
+  /* ! decide total size of the header, which should be 64 x N ! 8 ! */
   // increase total size by 64 until becoming larger than size_except_padding
   // NOTE: size_padding == 0 is NOT allowed since '\n' is necessary at the end
   //   thus the condition to continue loop is "<=", not "<"
@@ -1014,6 +1009,7 @@ static int create_padding(uint8_t **padding, size_t *n_padding, uint8_t *major_v
     size_header += 64;
   }
   size_t size_padding = size_header-size_except_padding;
+  /* ! create padding ! 6 ! */
   *n_padding = size_padding/sizeof(uint8_t);
   *padding = my_calloc(*n_padding, sizeof(uint8_t));
   // many ' 's: 0x20
@@ -1030,9 +1026,9 @@ static int create_header_len(uint8_t **header_len, size_t *n_header_len, const u
    * which should be written as a little-endian form
    *   (irrespective to the architecture)
    */
-  // For safety, reject too large dict / padding sizes
+  /* ! reject too large dict / padding sizes ! 10 ! */
   // Here "too large" means header size (not data size)
-  //   is larger than approx. 20GB, which would not happen normally
+  //   is larger than approx. 2GB, which would not happen normally
   if(n_dict >= UINT_MAX/2){
     ERROR("dictionary size is huge (%zu)\n", n_dict);
     return -1;
@@ -1041,6 +1037,7 @@ static int create_header_len(uint8_t **header_len, size_t *n_header_len, const u
     ERROR("padding size is huge (%zu)\n", n_padding);
     return -1;
   }
+  /* ! compute header_len and store as an array of unit8_t ! 15 ! */
   if(major_version == 2){
     // major version 2, use uint32_t to store header_len
     uint32_t header_len_uint32_t = (uint32_t)n_dict+(uint32_t)n_padding;
@@ -1056,9 +1053,8 @@ static int create_header_len(uint8_t **header_len, size_t *n_header_len, const u
     memcpy(*header_len, &header_len_uint16_t, *n_header_len);
     LOGGING("header_len (uint16_t): %hu\n", header_len_uint16_t);
   }
+  /* ! convert endian of buffer which will be written if needed ! 6 ! */
   if(is_big_endian()){
-    // if the architecture is big-endian
-    // convert HEADER_LEN to little endian
     if(convert_endian(header_len, sizeof(*header_len)) != 0){
       ERROR("convert_endian failed\n");
       return -1;
@@ -1090,27 +1086,25 @@ size_t simple_npyio_w_header(const size_t ndim, const size_t *shape, const char 
    */
   // check the file is really opened (at least non-NULL)
   REJECT_NULL(fp, 0);
-  /* prepare all datasets (from No. 0 to No. 5) */
-  // No. 0: magic_string
+  /* prepare all 6 datasets */
+  /* ! magic_string ! */
   const size_t n_magic_string = strlen(magic_string);
-  // No. 2: minor_version, always 0
+  /* ! minor_version, always 0 ! 1 ! */
   const uint8_t minor_version = 0;
-  // No. 4: dictionary (and its size)
+  /* ! dictionary (and its size) ! 5 ! */
   char *dict = NULL;
   size_t n_dict;
   if(create_dict(&dict, &n_dict, ndim, shape, dtype, is_fortran_order) != 0){
     return 0;
   }
-  // No. 1: major_version
-  // and
-  // No. 5: padding (and its size)
+  /* ! major_version and padding (and its size) ! 6 ! */
   uint8_t major_version;
   uint8_t *padding = NULL;
   size_t n_padding;
   if(create_padding(&padding, &n_padding, &major_version, n_dict) != 0){
     return 0;
   }
-  // No. 3: header_len
+  /* ! comptue header_len ! 5 ! */
   uint8_t *header_len = NULL;
   size_t n_header_len;
   if(create_header_len(&header_len, &n_header_len, major_version, n_dict, n_padding) != 0){
@@ -1175,6 +1169,6 @@ size_t simple_npyio_w_header(const size_t ndim, const size_t *shape, const char 
 
 #undef LOGGING
 #undef ERROR
-
+#undef REJECT_NULL
 #undef NUL
 

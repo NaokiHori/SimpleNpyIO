@@ -1,5 +1,5 @@
 CC       := cc
-CFLAGS   := -O3 -std=c99 -Wall -Wextra
+CFLAGS   := -O3 -std=c99 -Wall -Wextra -DLOGGING_SIMPLE_NPYIO
 DEPEND   := -MMD
 INCLUDES := -Iinclude
 SRCSDIR  := src

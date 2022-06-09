@@ -22,7 +22,7 @@ copyright = '2022, Naoki Hori'
 author = 'Naoki Hori'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1'
+release = '0.3'
 
 
 # -- General configuration ---------------------------------------------------
@@ -33,6 +33,8 @@ release = '0.1'
 sys.path.append(os.path.abspath("./ext"))
 extensions = [
         "details",
+        "myliteralinclude",
+        "sphinx.ext.graphviz",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -62,10 +64,5 @@ html_theme_options = {
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-rst_prolog = '''
-.. role:: c-lang(code)
-    :language: c
-.. role:: sh(code)
-    :language: sh
-'''
+graphviz_output_format = 'svg'
 
