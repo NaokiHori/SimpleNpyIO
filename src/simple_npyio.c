@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <limits.h>
-#include <errno.h>
 #include "simple_npyio.h"
 
 
@@ -17,166 +16,40 @@ static const char magic_string[] = {"\x93NUMPY"};
 // end-of-string
 #define NUL '\x00'
 
+#if defined(LOGGING_SIMPLE_NPYIO)
+#define LOGGING(...){                            \
+  fprintf(stderr, "[NPYIO LOG:%4d] ", __LINE__); \
+  fprintf(stderr, __VA_ARGS__);                  \
+}
+#else
+#define LOGGING(...)
+#endif
+
+#define ERROR(...){                              \
+  fprintf(stderr, "[NPYIO ERR:%4d] ", __LINE__); \
+  fprintf(stderr, __VA_ARGS__);                  \
+}
+
 /* wrappers of library functions with error handlers */
 // calloc
 #define CALLOC(ptr, count, size){                              \
-  errno = 0;                                                   \
   if(((ptr) = calloc((count), (size))) == NULL){               \
-    int code = errno;                                          \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);     \
-    fprintf(stderr, "calloc failed\n");                        \
-    fprintf(stderr, "%d:%s\n", code, strerror(code));          \
-    fprintf(stderr, "\tptr:   %s, %p\n",  #ptr,   ptr);        \
-    fprintf(stderr, "\tcount: %s, %zu\n", #count, count);      \
-    fprintf(stderr, "\tsize:  %s, %zu\n", #size,  size);       \
-    return -1;                                                 \
+    ERROR("calloc failed, try to allocate %zu bytes\n", (count)*(size)); \
+    exit(EXIT_FAILURE);                                        \
   }                                                            \
 }
 // free
-#define FREE(ptr){                                         \
-  errno = 0;                                               \
-  free((ptr));                                             \
-  if(errno != 0){                                          \
-    int code = errno;                                      \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__); \
-    fprintf(stderr, "free failed\n");                      \
-    fprintf(stderr, "%d:%s\n", code, strerror(code));      \
-    fprintf(stderr, "\tptr: %s, %p\n", #ptr, ptr);         \
-    return -1;                                             \
-  }                                                        \
+#define FREE(ptr){ \
+  free((ptr));     \
+  (ptr) = NULL;    \
 }
 
-// fread
-#define FREAD(ptr, size, nitems, stream){                    \
-  if((stream) == NULL){                                      \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);   \
-    fprintf(stderr, "file pointer is NULL\n");               \
-    return -1;                                               \
-  }                                                          \
-  errno = 0;                                                 \
-  if(fread((ptr), (size), (nitems), (stream)) < (nitems)){   \
-    int code = errno;                                        \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);   \
-    fprintf(stderr, "fread failed\n");                       \
-    fprintf(stderr, "%d:%s\n", code, strerror(code));        \
-    fprintf(stderr, "\tptr:    %s, %p\n",  #ptr,    ptr);    \
-    fprintf(stderr, "\tsize:   %s, %zu\n", #size,   size);   \
-    fprintf(stderr, "\tnitems: %s, %zu\n", #nitems, nitems); \
-    fprintf(stderr, "\tstream: %s, %p\n",  #stream, stream); \
-    return -1;                                               \
-  }                                                          \
-}
-// fwrite
-#define FWRITE(ptr, size, nitems, stream){                   \
-  if((stream) == NULL){                                      \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);   \
-    fprintf(stderr, "file pointer is NULL\n");               \
-    return -1;                                               \
-  }                                                          \
-  errno = 0;                                                 \
-  if(fwrite((ptr), (size), (nitems), (stream)) < (nitems)){  \
-    int code = errno;                                        \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);   \
-    fprintf(stderr, "fwrite failed\n");                      \
-    fprintf(stderr, "%d:%s\n", code, strerror(code));        \
-    fprintf(stderr, "\tptr:    %s, %p\n",  #ptr,    ptr);    \
-    fprintf(stderr, "\tsize:   %s, %zu\n", #size,   size);   \
-    fprintf(stderr, "\tnitems: %s, %zu\n", #nitems, nitems); \
-    fprintf(stderr, "\tstream: %s, %p\n",  #stream, stream); \
-    return -1;                                               \
-  }                                                          \
-}
-
-// snprintf
-#define SNPRINTF(str, size, ...){                             \
-  errno = 0;                                                  \
-  if(snprintf((str), (size), __VA_ARGS__) != (int)(size-1)) { \
-    int code = errno;                                         \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);    \
-    fprintf(stderr, "snprintf failed\n");                     \
-    fprintf(stderr, "%d:%s\n", code, strerror(code));         \
-    fprintf(stderr, "\tstr:    %s, %p\n",  #str,    str);     \
-    fprintf(stderr, "\tsize:   %s, %zu\n", #size,   size);    \
-    return -1;                                                \
-  }                                                           \
-}
-
-// memcpy
-#define MEMCPY(dst, src, n){                               \
-  errno = 0;                                               \
-  memcpy((dst), (src), (n));                               \
-  if(errno != 0){                                          \
-    int code = errno;                                      \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__); \
-    fprintf(stderr, "memcpy failed\n");                    \
-    fprintf(stderr, "%d:%s\n", code, strerror(code));      \
-    fprintf(stderr, "\tdst: %s, %p\n",  #dst, dst);        \
-    fprintf(stderr, "\tsrc: %s, %p\n",  #src, src);        \
-    fprintf(stderr, "\tn:   %s, %zu\n", #n,   n);          \
-    return -1;                                             \
-  }                                                        \
-}
-// memcmp
-#define MEMCMP(retval, s1, s2, n){                         \
-  errno = 0;                                               \
-  (retval) = memcmp((s1), (s2), (n));                      \
-  if(errno != 0){                                          \
-    int code = errno;                                      \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__); \
-    fprintf(stderr, "memcmp failed\n");                    \
-    fprintf(stderr, "%d:%s\n", code, strerror(code));      \
-    fprintf(stderr, "\ts1: %s, %p\n",  #s1, s1);           \
-    fprintf(stderr, "\ts2: %s, %p\n",  #s2, s2);           \
-    fprintf(stderr, "\tn:  %s, %zu\n", #n,  n);            \
-    return -1;                                             \
-  }                                                        \
-}
-
-// strlen
-#define STRLEN(retval, s){                                   \
-  if((s) == NULL){                                           \
-    return -1;                                               \
-  }else{                                                     \
-    errno = 0;                                               \
-    (retval) = strlen(s);                                    \
-    if(errno != 0){                                          \
-      int code = errno;                                      \
-      fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__); \
-      fprintf(stderr, "strlen failed\n");                    \
-      fprintf(stderr, "%d:%s\n", code, strerror(code));      \
-      fprintf(stderr, "\ts: %s, %p\n", #s, s);               \
-    }                                                        \
-  }                                                          \
-}
-// strtok
-#define STRTOK(buf, str, sep){                             \
-  errno = 0;                                               \
-  buf = strtok((str), (sep));                              \
-  if(errno != 0){                                          \
-    int code = errno;                                      \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__); \
-    fprintf(stderr, "strtok failed\n");                    \
-    fprintf(stderr, "%d:%s\n", code, strerror(code));      \
-    fprintf(stderr, "\tbuf: %s, %p\n", #buf, buf);         \
-    fprintf(stderr, "\tstr: %s, %p\n", #str, str);         \
-    fprintf(stderr, "\tsep: %s, %p\n", #sep, sep);         \
-    return -1;                                             \
-  }                                                        \
-}
-// strtoll
-#define STRTOLL(retval, str, endptr, base){                 \
-  errno = 0;                                                \
-  retval = strtoll((str), (endptr), (base));                \
-  if(errno != 0){                                           \
-    int code = errno;                                       \
-    fprintf(stderr, "%s:%d: error: ", __FILE__, __LINE__);  \
-    fprintf(stderr, "strtok failed\n");                     \
-    fprintf(stderr, "%d:%s\n", code, strerror(code));       \
-    fprintf(stderr, "\tstr:    %s, %p\n", #str, str);       \
-    fprintf(stderr, "\tendptr: %s, %p\n", #endptr, endptr); \
-    fprintf(stderr, "\tbase:   %s, %d\n", #base, base);     \
-    return -1;                                              \
-  }                                                         \
+// NULL check, return "retval" when it is
+#define REJECT_NULL(ptr, retval){ \
+  if((ptr) == NULL){ \
+    ERROR("%s is NULL\n", #ptr); \
+    return (retval); \
+  } \
 }
 
 /* auxiliary functions which are used by writer and reader */
@@ -189,16 +62,17 @@ static bool is_big_endian(void){
 
 // https://gist.github.com/NaokiHori/81ad6e1562e1ec23253246902c281cc2
 static int convert_endian(void *val, const size_t size){
-  // NULL check
-  if(val == NULL){
-    return -1;
-  }
+  REJECT_NULL(val, -1);
   // positive size check
   if(size <= 0){
+    ERROR("size of buffer should be positive\n");
     return -1;
   }
   // reject too large size
+  // 128 is normally sufficient
+  // even converting size_t would request 8 (64-bit arc.)
   if(size >= 128){
+    ERROR("size of buffer is larger than 128\n");
     return -1;
   }
   size_t n_bytes = size/sizeof(uint8_t);
@@ -207,7 +81,7 @@ static int convert_endian(void *val, const size_t size){
   for(size_t i = 0; i < n_bytes; i++){
     buf[i] = ((uint8_t *)val)[n_bytes-i-1];
   }
-  MEMCPY(val, buf, size);
+  memcpy(val, buf, size);
   FREE(buf);
   return 0;
 }
@@ -224,10 +98,8 @@ static int find_pattern(size_t *location, const void *p0, const size_t size_p0, 
    *   sizeof original datatype
    *   after the result is obtained
    */
-  // NULL check
-  if(p0 == NULL || p1 == NULL){
-    return -1;
-  }
+  REJECT_NULL(p0, -1);
+  REJECT_NULL(p1, -1);
   // p0 is shorter than p1, return not found
   if(size_p0 < size_p1){
     return -1;
@@ -245,9 +117,7 @@ static int find_pattern(size_t *location, const void *p0, const size_t size_p0, 
   size_t imin = 0;
   size_t imax = size_p0-size_p1;
   for(size_t i = imin; i <= imax; i++){
-    int retval;
-    MEMCMP(retval, p0+i, p1, size_p1);
-    if(retval == 0){
+    if(memcmp(p0+i, p1, size_p1) == 0){
       *location = i;
       return 0;
     }
@@ -257,15 +127,6 @@ static int find_pattern(size_t *location, const void *p0, const size_t size_p0, 
 
 /* reader */
 
-#if defined(LOGGING_SIMPLE_NPYIO)
-#define LOGGING(...){                        \
-  fprintf(stderr, "[SIMPLE_NPYIO reader] "); \
-  fprintf(stderr, __VA_ARGS__);              \
-}
-#else
-#define LOGGING(...)
-#endif
-
 static int load_magic_string(size_t *buf_size, FILE *fp){
   /*
    * all npy file should start with \x93NUMPY,
@@ -273,21 +134,25 @@ static int load_magic_string(size_t *buf_size, FILE *fp){
    *   the fist 6 bytes of the file
    *   and the magic string given a priori
    */
-  size_t nitems;
-  STRLEN(nitems, magic_string);
+  REJECT_NULL(fp, -1);
+  size_t nitems = strlen(magic_string);
   // allocate buffer and load from file
   // NOTE: file pointer is moved forward as well
   uint8_t *buf = NULL;
   CALLOC(buf, nitems, sizeof(uint8_t));
-  FREAD(buf, sizeof(uint8_t), nitems, fp);
+  {
+    size_t retval = fread(buf, sizeof(uint8_t), nitems, fp);
+    if(retval != nitems){
+      ERROR("fread failed (%zu items loaded, while %zu items requested)\n", retval, nitems);
+      return -1;
+    }
+  }
   *buf_size = sizeof(uint8_t)*nitems;
   // compare memories of
   //   1. "buf" (loaded from file)
   //   2. "magic_str" (answer)
-  int retval;
-  MEMCMP(retval, buf, magic_string, *buf_size);
-  if(retval != 0){
-    // they are not identical
+  if(memcmp(buf, magic_string, *buf_size) != 0){
+    ERROR("magic string \"\\x93NUMPY\" cannot be found\n");
     return -1;
   }
   FREE(buf);
@@ -304,16 +169,30 @@ static int load_versions(uint8_t *major_version, uint8_t *minor_version, size_t 
   const size_t nitems_minor_version = 1;
   const size_t buf_size_major_version = sizeof(uint8_t)*nitems_major_version;
   const size_t buf_size_minor_version = sizeof(uint8_t)*nitems_minor_version;
-  // allocate buffer and load from file
+  // load from file
   // (file pointer is moved forward as well)
-  FREAD(major_version, sizeof(uint8_t), nitems_major_version, fp);
-  FREAD(minor_version, sizeof(uint8_t), nitems_minor_version, fp);
+  {
+    size_t retval = fread(major_version, sizeof(uint8_t), nitems_major_version, fp);
+    if(retval != nitems_major_version){
+      ERROR("fread failed (%zu items loaded, while %zu items requested)\n", retval, nitems_major_version);
+      return -1;
+    }
+  }
+  {
+    size_t retval = fread(minor_version, sizeof(uint8_t), nitems_minor_version, fp);
+    if(retval != nitems_minor_version){
+      ERROR("fread failed (%zu items loaded, while %zu items requested)\n", retval, nitems_minor_version);
+      return -1;
+    }
+  }
   // check version 1.x or 2.x
   if(*major_version != 1 && *major_version != 2){
+    ERROR("major version (%u) should be 1 or 2\n", *major_version);
     return -1;
   }
   // check version x.0
   if(*minor_version != 0){
+    ERROR("minor version (%u) should be 0\n", *minor_version);
     return -1;
   }
   LOGGING("major version: %u\n", *major_version);
@@ -334,18 +213,24 @@ static int load_header_len(size_t *header_len, size_t *buf_size, size_t major_ve
   size_t nitems;
   if(major_version == 1){
     *buf_size = sizeof(uint16_t);
-    // usually 2, which is assumed
+    // usually 2
     nitems = *buf_size/sizeof(uint8_t);
   }else{
     *buf_size = sizeof(uint32_t);
-    // usually 4, which is assumed
+    // usually 4
     nitems = *buf_size/sizeof(uint8_t);
   }
   // allocate buffer and
   //   load corresponding memory size from file
   uint8_t *buf = NULL;
   CALLOC(buf, nitems, sizeof(uint8_t));
-  FREAD(buf, sizeof(uint8_t), nitems, fp);
+  {
+    size_t retval = fread(buf, sizeof(uint8_t), nitems, fp);
+    if(retval != nitems){
+      ERROR("fread failed (%zu items loaded, while %zu items requested)\n", retval, nitems);
+      return -1;
+    }
+  }
   // convert little-endian value to big endian
   //   if the architecture is big-endian-based
   if(is_big_endian()){
@@ -373,7 +258,13 @@ static int load_dict_and_padding(uint8_t **dict_and_padding, size_t *buf_size, s
    */
   size_t nitems = header_len/sizeof(uint8_t);
   CALLOC(*dict_and_padding, nitems, sizeof(uint8_t));
-  FREAD(*dict_and_padding, sizeof(uint8_t), nitems, fp);
+  {
+    size_t retval = fread(*dict_and_padding, sizeof(uint8_t), nitems, fp);
+    if(retval != nitems){
+      ERROR("fread failed (%zu items loaded, while %zu items requested)\n", retval, nitems);
+      return -1;
+    }
+  }
   *buf_size = header_len;
   return 0;
 }
@@ -403,9 +294,8 @@ static int extract_dict(char **dict, uint8_t *dict_and_padding, size_t header_le
     // use char since it's "{"
     char p0 = dict_and_padding[0];
     char p1 = '{';
-    int retval;
-    MEMCMP(retval, &p0, &p1, sizeof(char));
-    if(retval != 0){
+    if(memcmp(&p0, &p1, sizeof(char)) != 0){
+      ERROR("dict_and_padding (%s) does not start with '{'\n", dict_and_padding);
       return -1;
     }
     s = 0;
@@ -421,14 +311,12 @@ static int extract_dict(char **dict, uint8_t *dict_and_padding, size_t header_le
       //  rather than ascii
       uint8_t p0 = dict_and_padding[i];
       char p1 = '}';
-      int retval;
-      MEMCMP(retval, &p0, &p1, sizeof(char));
-      if(retval == 0){
+      if(memcmp(&p0, &p1, sizeof(char)) == 0){
         e = i;
         break;
       }
       if(i == 1){
-        // empty dict
+        ERROR("dict_and_padding (%s) is empty\n", dict_and_padding);
         return -1;
       }
     }
@@ -492,17 +380,18 @@ static int find_dict_value(const char key[], char **val, const char *dict){
    * dictionary consists of pairs of "key" and "val"
    * this function extracts the "val" of the specified "key"
    */
-  // number of characters which will be frequently used hereafter
-  // also NULL checks are done internally
-  size_t n_chars_key;
-  size_t n_chars_dict;
-  STRLEN(n_chars_key, key);
-  STRLEN(n_chars_dict, dict);
-  // do not accept zero-length strings, just in case
+  REJECT_NULL(key,  -1);
+  REJECT_NULL(dict, -1);
+  // number of characters
+  size_t n_chars_key = strlen(key);
+  size_t n_chars_dict = strlen(dict);
+  // do not accept zero-length strings
   if(n_chars_key == 0){
+    ERROR("key is empty\n");
     return -1;
   }
   if(n_chars_dict == 0){
+    ERROR("dict is empty\n");
     return -1;
   }
   // 1. find key locations (start and end)
@@ -517,6 +406,7 @@ static int find_dict_value(const char key[], char **val, const char *dict){
         sizeof(char)*n_chars_key
     );
     if(retval < 0){
+      ERROR("key (%s) not found in dict (%s)\n", key, dict);
       return -1;
     }
     key_s = location/sizeof(char);
@@ -560,12 +450,14 @@ static int find_dict_value(const char key[], char **val, const char *dict){
       is_outside_brackets_r = true;
     }else if(bracket_level_r < 0){
       // indicating ) is found but ( could not found in front of it
+      ERROR("strange dict (%s), ')' found but corresponding '(' not found in front of it\n", dict);
       return -1;
     }
     if(bracket_level_s == 0){
       is_outside_brackets_s = true;
     }else if(bracket_level_s < 0){
       // indicating ] is found but [ could not found in front of it
+      ERROR("strange dict (%s), ']' found but corresponding '[' not found in front of it\n", dict);
       return -1;
     }
     // we are at the end of val if "," is found outside all brackets
@@ -586,7 +478,7 @@ static int find_dict_value(const char key[], char **val, const char *dict){
   // 3. now we know where val starts and terminates, so extract it
   size_t n_chars_val = val_e-val_s+1;
   CALLOC(*val, n_chars_val+1, sizeof(char)); // + NUL
-  MEMCPY(*val, dict+val_s, sizeof(char)*n_chars_val);
+  memcpy(*val, dict+val_s, sizeof(char)*n_chars_val);
   return 0;
 }
 
@@ -595,15 +487,15 @@ static int extract_shape(size_t *ndim, size_t **shape, const char *val){
    * parse given python tuple "val" and obtain shape of data,
    *   which is necessary to be parsed to re-construct the data
    */
+  REJECT_NULL(val, -1);
   // 1. check number of dimension (ndim) to store shape
   {
     char *str = NULL;
     // copy "val" to a buffer "str" after removing parentheses
-    size_t n_chars_val;
-    STRLEN(n_chars_val, val);
+    size_t n_chars_val = strlen(val);
     // no parentheses (-2), with NUL (+1)
     CALLOC(str, n_chars_val-2+1, sizeof(char));
-    MEMCPY(str, val+1, sizeof(char)*(n_chars_val-2));
+    memcpy(str, val+1, sizeof(char)*(n_chars_val-2));
     // parse "val" to know "ndim",
     // e.g.,
     //   <empty> -> ndim = 0
@@ -615,9 +507,9 @@ static int extract_shape(size_t *ndim, size_t **shape, const char *val){
       const char sep[] = {","};
       char *buf = NULL;
       if(i == 0){
-        STRTOK(buf, str,  sep);
+        buf = strtok(str,  sep);
       }else{
-        STRTOK(buf, NULL, sep);
+        buf = strtok(NULL, sep);
       }
       if(buf == NULL){
         break;
@@ -632,11 +524,10 @@ static int extract_shape(size_t *ndim, size_t **shape, const char *val){
   {
     char *str = NULL;
     // copy "val" to a buffer "str" after removing parentheses
-    size_t n_chars_val;
-    STRLEN(n_chars_val, val);
+    size_t n_chars_val = strlen(val);
     // no parentheses (-2), with NUL (+1)
     CALLOC(str, n_chars_val-2+1, sizeof(char));
-    MEMCPY(str, val+1, sizeof(char)*(n_chars_val-2));
+    memcpy(str, val+1, sizeof(char)*(n_chars_val-2));
     // parse value to know shape
     // e.g.,
     //   <empty> -> N/A
@@ -647,15 +538,15 @@ static int extract_shape(size_t *ndim, size_t **shape, const char *val){
       const char sep[] = {","};
       char *buf = NULL;
       if(i == 0){
-        STRTOK(buf, str,  sep);
+        buf = strtok(str,  sep);
       }else{
-        STRTOK(buf, NULL, sep);
+        buf = strtok(NULL, sep);
       }
       if(buf == NULL){
         break;
       }else{
         // assign to the resulting buffer "shape"
-        STRTOLL((*shape)[j], buf, NULL, 10);
+        (*shape)[j] = strtoll(buf, NULL, 10);
         j++;
       }
     }
@@ -673,8 +564,8 @@ static int extract_dtype(char **dtype, const char *val){
    * find a key 'descr' and extract its value
    * return obtained value directly since it is enough
    */
-  size_t n_chars_val;
-  STRLEN(n_chars_val, val);
+  REJECT_NULL(val, -1);
+  size_t n_chars_val = strlen(val);
   CALLOC(*dtype, n_chars_val+1, sizeof(char));
   memcpy(*dtype, val, sizeof(char)*n_chars_val);
   (*dtype)[n_chars_val] = NUL;
@@ -688,16 +579,15 @@ static int extract_is_fortran_order(bool *is_fortran_order, const char *val){
    * check whether it is "True" or "False",
    *   convert it to boolean and return
    */
+  REJECT_NULL(val, -1);
   bool  true_is_found = false;
   bool false_is_found = false;
   // try to find "True"
   {
     const char pattern[] = {"True"};
     size_t location;
-    size_t n_chars_val;
-    size_t n_chars_pattern;
-    STRLEN(n_chars_val, val);
-    STRLEN(n_chars_pattern, pattern);
+    size_t n_chars_val = strlen(val);
+    size_t n_chars_pattern = strlen(pattern);
     int retval = find_pattern(
         &location,
         (void *)val,
@@ -715,10 +605,8 @@ static int extract_is_fortran_order(bool *is_fortran_order, const char *val){
   {
     const char pattern[] = {"False"};
     size_t location;
-    size_t n_chars_val;
-    size_t n_chars_pattern;
-    STRLEN(n_chars_val, val);
-    STRLEN(n_chars_pattern, pattern);
+    size_t n_chars_val = strlen(val);
+    size_t n_chars_pattern = strlen(pattern);
     int retval = find_pattern(
         &location,
         (void *)val,
@@ -734,10 +622,10 @@ static int extract_is_fortran_order(bool *is_fortran_order, const char *val){
   }
   // check two results and decide final outcome
   if(true_is_found && false_is_found){
-    LOGGING("both True and False are found: %s\n", val);
+    ERROR("both True and False are found: %s\n", val);
     return -1;
   }else if((!true_is_found) && (!false_is_found)){
-    LOGGING("none of True and False are found: %s\n", val);
+    ERROR("none of True and False are found: %s\n", val);
     return -1;
   }else if(true_is_found){
     *is_fortran_order = true;
@@ -752,6 +640,8 @@ size_t simple_npyio_r_header(size_t *ndim, size_t **shape, char **dtype, bool *i
   uint8_t major_version, minor_version;
   size_t header_len, header_size;
   uint8_t *dict_and_padding = NULL;
+  // check the file is really opened (at least non-NULL)
+  REJECT_NULL(fp, 0);
   /* step 1: load header from file and move file pointer forward */
   // load header to get / sanitise input and move file pointer forward
   // also the total header size "header_size" is calculated
@@ -841,18 +731,7 @@ size_t simple_npyio_r_header(size_t *ndim, size_t **shape, char **dtype, bool *i
   return header_size;
 }
 
-#undef LOGGING
-
 /* writer */
-
-#if defined(LOGGING_SIMPLE_NPYIO)
-#define LOGGING(...) { \
-  fprintf(stderr, "[SIMPLE_NPYIO writer] "); \
-  fprintf(stderr, __VA_ARGS__); \
-}
-#else
-#define LOGGING(...)
-#endif
 
 static int create_descr_value(char **value, const char dtype[]){
   /*
@@ -867,11 +746,12 @@ static int create_descr_value(char **value, const char dtype[]){
    * NOTE: this function allocates memory for value,
    *   which should be deallocated afterwards by the caller
    */
-  size_t n_chars;
-  STRLEN(n_chars, dtype);
+  REJECT_NULL(dtype, -1);
+  size_t n_chars = strlen(dtype);
   // check empty string,
   //   since empty datatype is obviously strange
   if(n_chars == 0){
+    ERROR("given dtype is empty\n");
     return -1;
   }
   // +1 for NUL
@@ -880,7 +760,7 @@ static int create_descr_value(char **value, const char dtype[]){
   //   (calloc should assign 0 already)
   (*value)[n_chars] = NUL;
   // copy dtype
-  MEMCPY(*value, dtype, sizeof(char)*n_chars);
+  memcpy(*value, dtype, sizeof(char)*n_chars);
   return 0;
 }
 
@@ -894,19 +774,17 @@ static int create_fortran_order_value(char **value, const bool is_fortran_order)
    */
   if(is_fortran_order){
     const char string[] = {"True"};
-    size_t n_chars;
-    STRLEN(n_chars, string);
+    const size_t n_chars = strlen(string);
     // "True" + NUL
     CALLOC(*value, n_chars+1, sizeof(char));
-    MEMCPY(*value, string, sizeof(char)*n_chars);
+    memcpy(*value, string, sizeof(char)*n_chars);
     (*value)[n_chars] = NUL;
   }else{
     const char string[] = {"False"};
-    size_t n_chars;
-    STRLEN(n_chars, string);
+    const size_t n_chars = strlen(string);
     // "False" + NUL
     CALLOC(*value, n_chars+1, sizeof(char));
-    MEMCPY(*value, string, sizeof(char)*n_chars);
+    memcpy(*value, string, sizeof(char)*n_chars);
     (*value)[n_chars] = NUL;
   }
   return 0;
@@ -933,6 +811,7 @@ static int create_shape_value(char **value, const size_t ndim, const size_t *sha
   //   but they are not useful in most cases
   for(size_t i = 0; i < ndim; i++){
     if(shape[i] <= 0){
+      ERROR("shape[%zu] should be positive\n", i);
       return -1;
     }
   }
@@ -967,9 +846,15 @@ static int create_shape_value(char **value, const size_t ndim, const size_t *sha
     // + "," and "NUL"
     CALLOC(buf, n_digit+2, sizeof(char));
     // including ","
-    SNPRINTF(buf, n_digit+2, "%zu,", shape[i]);
+    {
+      int retval = snprintf(buf, n_digit+2, "%zu,", shape[i]);
+      if(retval != (int)(n_digit+1)){
+        ERROR("snprintf failed (expected: %d, given: %d)\n", retval, (int)(n_digit+1));
+        return -1;
+      }
+    }
     // copy result excluding NUL
-    MEMCPY((*value)+offset, buf, sizeof(char)*(n_digit+1));
+    memcpy((*value)+offset, buf, sizeof(char)*(n_digit+1));
     offset += n_digit+1;
     FREE(buf);
   }
@@ -1007,12 +892,15 @@ static int create_dict(char **dict, size_t *n_dict, const size_t ndim, const siz
   // 1. create dictionary values,
   //   in which inputs are evaluated and sanitised
   if(create_descr_value(&descr_value, dtype) != 0){
+    ERROR("create_descr_value failed\n");
     return -1;
   }
   if(create_fortran_order_value(&fortran_order_value, is_fortran_order) != 0){
+    ERROR("create_fortran_order_value failed\n");
     return -1;
   }
   if(create_shape_value(&shape_value, ndim, shape) != 0){
+    ERROR("create_shape_value failed\n");
     return -1;
   }
   // 2. assign all elements (strings) which compose dict
@@ -1047,8 +935,7 @@ static int create_dict(char **dict, size_t *n_dict, const size_t ndim, const siz
   size_t n_chars_dict = 0;
   for(size_t i = 0; i < n_elements_dict; i++){
     // check each element and sum up its number of characters
-    size_t n_chars;
-    STRLEN(n_chars, elements[i]);
+    size_t n_chars = strlen(elements[i]);
     n_chars_dict += n_chars;
   }
   // last NUL
@@ -1056,9 +943,8 @@ static int create_dict(char **dict, size_t *n_dict, const size_t ndim, const siz
   // 4. allocate dict and assign above "elements"
   CALLOC(*dict, n_chars_dict, sizeof(char));
   for(size_t i = 0, offset = 0; i < n_elements_dict; i++){
-    size_t n_chars;
-    STRLEN(n_chars, elements[i]);
-    MEMCPY((*dict)+offset, elements[i], sizeof(char)*n_chars);
+    size_t n_chars = strlen(elements[i]);
+    memcpy((*dict)+offset, elements[i], sizeof(char)*n_chars);
     offset += n_chars;
   }
   (*dict)[n_chars_dict-1] = NUL;
@@ -1069,7 +955,7 @@ static int create_dict(char **dict, size_t *n_dict, const size_t ndim, const siz
   FREE(elements);
   // as the length of "dict", use length WITHOUT NUL,
   // i.e. strlen(*dict)
-  STRLEN(*n_dict, *dict);
+  *n_dict = strlen(*dict);
   LOGGING("dict: %s\n", *dict);
   LOGGING("size: %zu\n", *n_dict);
   return 0;
@@ -1091,14 +977,14 @@ static int create_padding(uint8_t **padding, size_t *n_padding, uint8_t *major_v
    *   whose length (number of elements) is returned
    */
   // size of each element
-  size_t n_magic_string;
-  STRLEN(n_magic_string, magic_string);
+  size_t n_magic_string = strlen(magic_string);
   size_t size_magic_string  = sizeof(char)*n_magic_string;
   size_t size_major_version = sizeof(uint8_t);
   size_t size_minor_version = sizeof(uint8_t);
   size_t size_dict          = sizeof(char)*n_dict;
   // reject too large dict
   if(size_dict > UINT_MAX-64){
+    ERROR("size of dictionary is huge (%zu)\n", size_dict);
     return -1;
   }
   // large portion of the header is occupied by dict
@@ -1148,9 +1034,11 @@ static int create_header_len(uint8_t **header_len, size_t *n_header_len, const u
   // Here "too large" means header size (not data size)
   //   is larger than approx. 20GB, which would not happen normally
   if(n_dict >= UINT_MAX/2){
+    ERROR("dictionary size is huge (%zu)\n", n_dict);
     return -1;
   }
   if(n_padding >= UINT_MAX/2){
+    ERROR("padding size is huge (%zu)\n", n_padding);
     return -1;
   }
   if(major_version == 2){
@@ -1158,20 +1046,21 @@ static int create_header_len(uint8_t **header_len, size_t *n_header_len, const u
     uint32_t header_len_uint32_t = (uint32_t)n_dict+(uint32_t)n_padding;
     *n_header_len = sizeof(uint32_t)/sizeof(uint8_t);
     CALLOC(*header_len, *n_header_len, sizeof(uint8_t));
-    MEMCPY(*header_len, &header_len_uint32_t, *n_header_len);
+    memcpy(*header_len, &header_len_uint32_t, *n_header_len);
     LOGGING("header_len (uint32_t): %u\n", header_len_uint32_t);
   }else{
     // major version 1, use uint16_t to store header_len
     uint16_t header_len_uint16_t = (uint16_t)n_dict+(uint16_t)n_padding;
     *n_header_len = sizeof(uint16_t)/sizeof(uint8_t);
     CALLOC(*header_len, *n_header_len, sizeof(uint8_t));
-    MEMCPY(*header_len, &header_len_uint16_t, *n_header_len);
+    memcpy(*header_len, &header_len_uint16_t, *n_header_len);
     LOGGING("header_len (uint16_t): %hu\n", header_len_uint16_t);
   }
   if(is_big_endian()){
     // if the architecture is big-endian
     // convert HEADER_LEN to little endian
     if(convert_endian(header_len, sizeof(*header_len)) != 0){
+      ERROR("convert_endian failed\n");
       return -1;
     }
   }
@@ -1199,10 +1088,11 @@ size_t simple_npyio_w_header(const size_t ndim, const size_t *shape, const char 
    *
    * See below and corresponding function for details of each member
    */
+  // check the file is really opened (at least non-NULL)
+  REJECT_NULL(fp, 0);
   /* prepare all datasets (from No. 0 to No. 5) */
   // No. 0: magic_string
-  size_t n_magic_string;
-  STRLEN(n_magic_string, magic_string);
+  const size_t n_magic_string = strlen(magic_string);
   // No. 2: minor_version, always 0
   const uint8_t minor_version = 0;
   // No. 4: dictionary (and its size)
@@ -1256,19 +1146,25 @@ size_t simple_npyio_w_header(const size_t ndim, const size_t *shape, const char 
     header_nitems = header_size/sizeof(uint8_t);
     CALLOC(header, header_nitems, sizeof(uint8_t));
     // write all information to a buffer "header"
-    MEMCPY(header+offsets[0], magic_string,   sizes[0]);
-    MEMCPY(header+offsets[1], &major_version, sizes[1]);
-    MEMCPY(header+offsets[2], &minor_version, sizes[2]);
-    MEMCPY(header+offsets[3], header_len,     sizes[3]);
-    MEMCPY(header+offsets[4], dict,           sizes[4]);
-    MEMCPY(header+offsets[5], padding,        sizes[5]);
+    memcpy(header+offsets[0], magic_string,   sizes[0]);
+    memcpy(header+offsets[1], &major_version, sizes[1]);
+    memcpy(header+offsets[2], &minor_version, sizes[2]);
+    memcpy(header+offsets[3], header_len,     sizes[3]);
+    memcpy(header+offsets[4], dict,           sizes[4]);
+    memcpy(header+offsets[5], padding,        sizes[5]);
     // clean-up buffers
     FREE(sizes);
     FREE(offsets);
   }
   LOGGING("header_size: %zu\n", header_size);
   /* write to the given file stream */
-  FWRITE(header, sizeof(uint8_t), header_nitems, fp);
+  {
+    size_t retval = fwrite(header, sizeof(uint8_t), header_nitems, fp);
+    if(retval != header_nitems){
+      ERROR("fwrite failed (%zu items written, while %zu items given)\n", retval, header_nitems);
+      return 0;
+    }
+  }
   // clean-up all buffers
   FREE(dict);
   FREE(padding);
@@ -1278,17 +1174,10 @@ size_t simple_npyio_w_header(const size_t ndim, const size_t *shape, const char 
 }
 
 #undef LOGGING
+#undef ERROR
 
 #undef NUL
 
 #undef CALLOC
 #undef FREE
-#undef FREAD
-#undef FWRITE
-#undef SNPRINTF
-#undef MEMCPY
-#undef MEMCMP
-#undef STRLEN
-#undef STRTOK
-#undef STRTOLL
 
