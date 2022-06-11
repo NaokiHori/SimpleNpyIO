@@ -2,21 +2,7 @@
 SimpleNpyIO
 ###########
 
-|CBadge| |DockerBadge| |GitHubActionsBadge| |GitHubPagesBadge|
-
-.. |CBadge| image:: https://img.shields.io/badge/C-00599C?style=for-the-badge&logo=C&logoColor=white
-
-.. |DockerBadge| image:: https://img.shields.io/badge/Docker-2CA5E0?style=for-the-badge&logo=docker&logoColor=white
-
-.. |GitHubActionsBadge| image:: https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=github-actions&logoColor=white
-
-.. |GitHubPagesBadge| image:: https://img.shields.io/badge/GitHub%20Pages-222222?style=for-the-badge&logo=GitHub%20Pages&logoColor=white
-
-|License|_ |LastCommit|_
-
-|DocDeployment|_ |WorkflowStatus|_
-
-|UnitTest|_ |IntegrationTest|_ |MemoryLeak|_
+|License|_ |LastCommit|_ |DocDeployment|_ |WorkflowStatus|_
 
 .. |License| image:: https://img.shields.io/github/license/NaokiHori/SimpleNpyIO
 .. _License: https://opensource.org/licenses/MIT
@@ -30,14 +16,15 @@ SimpleNpyIO
 .. |WorkflowStatus| image:: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/ci.yml/badge.svg?branch=master
 .. _WorkflowStatus: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/ci.yml
 
-.. |UnitTest| image:: https://raw.githubusercontent.com/NaokiHori/SimpleNpyIO/artifacts/.github/workflows/artifacts/badge_unittest.svg
-.. _UnitTest: https://github.com/NaokiHori/SimpleNpyIO/tree/artifacts/.github/workflows/artifacts
+|CBadge| |DockerBadge| |GitHubActionsBadge| |GitHubPagesBadge|
 
-.. |IntegrationTest| image:: https://raw.githubusercontent.com/NaokiHori/SimpleNpyIO/artifacts/.github/workflows/artifacts/badge_integrationtest.svg
-.. _IntegrationTest: https://github.com/NaokiHori/SimpleNpyIO/tree/artifacts/.github/workflows/artifacts
+.. |CBadge| image:: https://img.shields.io/badge/C-00599C?style=for-the-badge&logo=C&logoColor=white
 
-.. |MemoryLeak| image:: https://github.com/NaokiHori/SimpleNpyIO/blob/artifacts/.github/workflows/artifacts/badge_memoryleakcheck.svg
-.. _MemoryLeak: https://github.com/NaokiHori/Alpine-Dockerfiles/tree/valgrind
+.. |DockerBadge| image:: https://img.shields.io/badge/Docker-2CA5E0?style=for-the-badge&logo=docker&logoColor=white
+
+.. |GitHubActionsBadge| image:: https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=github-actions&logoColor=white
+
+.. |GitHubPagesBadge| image:: https://img.shields.io/badge/GitHub%20Pages-222222?style=for-the-badge&logo=GitHub%20Pages&logoColor=white
 
 ********
 Overview
@@ -74,11 +61,7 @@ To read a dataset from a file, what you need to do is to prepare a similar simpl
 
    FILE *fp = fopen("test.npy", "r"); // user should check fp == NULL
    simple_npyio_r_header(&ndim, &shape, &dtype, &is_fortran_order, fp);
-   // Prepare buffer to receive data
-   //   for instance, if ndim == 2,
-   //     size_t nitems = shape[0]*shape[1];
-   //     size_t *data = calloc(nitems, sizeof(type_of_data));
-   // User should specify appropriate data type from "dtype"
+   /* Here prepare buffer to receive data based on ndim, shape etc. */
    fread(data, sizeof(type_of_data), nitems, fp);
    fclose(fp);
    // whatever you want
@@ -207,6 +190,17 @@ This script exists, however, just for convenience (to see how they work) and not
 Tests
 *****
 
+|UnitTest|_ |IntegrationTest|_ |MemoryLeak|_
+
+.. |UnitTest| image:: https://raw.githubusercontent.com/NaokiHori/SimpleNpyIO/artifacts/.github/workflows/artifacts/badge_unittest.svg
+.. _UnitTest: https://github.com/NaokiHori/SimpleNpyIO/tree/artifacts/.github/workflows/artifacts
+
+.. |IntegrationTest| image:: https://raw.githubusercontent.com/NaokiHori/SimpleNpyIO/artifacts/.github/workflows/artifacts/badge_integrationtest.svg
+.. _IntegrationTest: https://github.com/NaokiHori/SimpleNpyIO/tree/artifacts/.github/workflows/artifacts
+
+.. |MemoryLeak| image:: https://github.com/NaokiHori/SimpleNpyIO/blob/artifacts/.github/workflows/artifacts/badge_memoryleakcheck.svg
+.. _MemoryLeak: https://github.com/NaokiHori/Alpine-Dockerfiles/tree/valgrind
+
 =========
 Unit test
 =========
@@ -220,4 +214,12 @@ Integration test
 
 Integration tests are performed automatically by comparing `npy` files generated (natively) by Python and this library.
 The details can be found under `test/integration <https://github.com/NaokiHori/SimpleNpyIO/tree/master/test/integration>`_.
+
+=================
+Memory leak check
+=================
+
+Generally file-IO routines are called for several times, especially in numerical simulations to dump computed quantities.
+If memory leaks exist in the library, they accumulate in time, which may be catastrophic, and thus deallocating all memories used in the library *correctly* is important.
+This feature is also tested as well as the unit and integration tests automatically here using `Valgrind <https://valgrind.org>`_.
 
