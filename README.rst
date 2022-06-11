@@ -2,16 +2,27 @@
 SimpleNpyIO
 ###########
 
-|License|_
+|CBadge| |DockerBadge| |GitHubActionsBadge| |GitHubPagesBadge|
+
+.. |CBadge| image:: https://img.shields.io/badge/C-00599C?style=for-the-badge&logo=C&logoColor=white
+
+.. |DockerBadge| image:: https://img.shields.io/badge/Docker-2CA5E0?style=for-the-badge&logo=docker&logoColor=white
+
+.. |GitHubActionsBadge| image:: https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=github-actions&logoColor=white
+
+.. |GitHubPagesBadge| image:: https://img.shields.io/badge/GitHub%20Pages-222222?style=for-the-badge&logo=GitHub%20Pages&logoColor=white
+
+|License|_ |LastCommit|_
 
 |DocDeployment|_ |WorkflowStatus|_
 
 |UnitTest|_ |IntegrationTest|_ |MemoryLeak|_
 
-|LastCommit|_
-
 .. |License| image:: https://img.shields.io/github/license/NaokiHori/SimpleNpyIO
 .. _License: https://opensource.org/licenses/MIT
+
+.. |LastCommit| image:: https://img.shields.io/github/last-commit/NaokiHori/SimpleNpyIO/master
+.. _LastCommit: https://github.com/NaokiHori/SimpleNpyIO/commits/master
 
 .. |DocDeployment| image:: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/documentation.yml/badge.svg?branch=master
 .. _DocDeployment: https://naokihori.github.io/SimpleNpyIO/
@@ -27,9 +38,6 @@ SimpleNpyIO
 
 .. |MemoryLeak| image:: https://github.com/NaokiHori/SimpleNpyIO/blob/artifacts/.github/workflows/artifacts/badge_memoryleakcheck.svg
 .. _MemoryLeak: https://github.com/NaokiHori/Alpine-Dockerfiles/tree/valgrind
-
-.. |LastCommit| image:: https://img.shields.io/github/last-commit/NaokiHori/SimpleNpyIO/master
-.. _LastCommit: https://github.com/NaokiHori/SimpleNpyIO/commits/master
 
 ********
 Overview
