@@ -89,7 +89,7 @@ Loading procedure of a `npy` header is taken care of by a main function ``simple
          shape = oval;
       ];
       error [
-         label = "Error handlings"
+         label = "Error\nhandlings"
          shape = rect;
       ];
 
@@ -206,7 +206,7 @@ Detailed descriptions can be found hereafter.
 
       {'descr': '<i4','fortran_order': False,'shape': (3, 5, )}[ PADDING ]
 
-   this function converts it to
+   This function converts it to
 
    .. code-block:: python
 

@@ -16,4 +16,5 @@ Simple library to read / write `npy` files written in `C99`.
    test
    implementation_writer
    implementation_reader
+   implementation_err_hndl
 

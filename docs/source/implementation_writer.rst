@@ -61,15 +61,15 @@ Wiring procedure of a `npy` header is taken care of by a main function ``simple_
          shape = oval;
       ];
       magic_string [
-         label = "Prepare magic string";
+         label = "Prepare\nmagic string";
          shape = rect;
       ];
       minor_version [
-         label = "Decide minor version";
+         label = "Decide\nminor version";
          shape = rect;
       ];
       create_dict [
-         label = "Create dictionary";
+         label = "Create\ndictionary";
          shape = diamond;
       ];
       major_version [
@@ -81,7 +81,7 @@ Wiring procedure of a `npy` header is taken care of by a main function ``simple_
          shape = diamond;
       ];
       output [
-         label = "Output header";
+         label = "Output\nheader";
          shape = diamond;
       ];
       end [
@@ -89,7 +89,7 @@ Wiring procedure of a `npy` header is taken care of by a main function ``simple_
          shape = oval;
       ];
       error [
-         label = "Error handlings"
+         label = "Error\nhandlings"
          shape = rect;
       ];
 

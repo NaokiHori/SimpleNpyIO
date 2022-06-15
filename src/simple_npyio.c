@@ -40,22 +40,153 @@ static const char magic_string[] = {"\x93NUMPY"};
   } \
 }
 
-/* calloc wrapper, kill when failed */
+// errorcode (return value)
+#define RETVAL_SUCCESS ( 0)
+#define RETVAL_FAILURE (-1)
+
+// maximum number of items
+// more than 65535, sufficiently large for my purpose
+#define NITEMS_MAX USHRT_MAX
+
+/* ! memory pool storing all allocated pointers in this library ! 8 ! */
+typedef struct smt_t_ smt_t;
+struct smt_t_ {
+  // pointer to the allocated buffer (by my_calloc)
+  void *ptr;
+  // pointer to the next node
+  smt_t *node_next;
+};
+smt_t *all_memories = NULL;
+
+/* take care of actual allocation / deallocation */
 static void *my_calloc(const size_t count, const size_t size){
   void *ptr = calloc(count, size);
   if(ptr == NULL){
     ERROR("Memory allocation error\n");
     exit(EXIT_FAILURE);
   }
-  // NULL check is no longer needed
   return ptr;
 }
 
-/* free wrapper, assign NULL to clean-up */
 static void my_free(void *ptr){
   free(ptr);
   ptr = NULL;
 }
+
+/* get_nitems */
+static int kernel_smt_get_nitems(size_t *nitems, smt_t *node_root){
+  smt_t *node_curr = node_root;
+  for(*nitems = 0; node_curr != NULL; node_curr = node_curr->node_next, (*nitems)++){
+    if(*nitems >= NITEMS_MAX){
+      return RETVAL_FAILURE;
+    }
+  }
+  return RETVAL_SUCCESS;
+}
+
+/* search pointer */
+static int search(smt_t **node_root, smt_t **node_curr, smt_t **node_prev, const void *ptr){
+  /*
+   * return RETVAL_SUCCESS if "ptr" is found,
+   * otherwise return RETVAL_FAILURE
+   */
+  for(*node_prev = NULL, *node_curr = *node_root;
+      *node_curr != NULL;
+      *node_prev = *node_curr, *node_curr = (*node_curr)->node_next
+  ){
+    if((*node_curr)->ptr == ptr){
+      return RETVAL_SUCCESS;
+    }
+  }
+  return RETVAL_FAILURE;
+}
+
+/* functions which increase members */
+static int kernel_smt_attach(smt_t **node_root, void *ptr){
+  // too many members should be rejected
+  size_t nitems;
+  if(kernel_smt_get_nitems(&nitems, *node_root) != RETVAL_SUCCESS){
+    return RETVAL_FAILURE;
+  }
+  smt_t *node_prev = NULL;
+  smt_t *node_curr = NULL;
+  // check duplication
+  // we should NOT be able to find the new pointer in the already-registered list
+  if(search(node_root, &node_curr, &node_prev, ptr) != RETVAL_FAILURE){
+    return RETVAL_FAILURE;
+  }
+  // allocate a node to hold ptr information
+  node_curr = my_calloc(1, sizeof(smt_t));
+  // next node is current root (new node is new root node)
+  node_curr->node_next = *node_root;
+  // assign other info
+  node_curr->ptr = ptr;
+  // now curr node is the root
+  *node_root = node_curr;
+  return RETVAL_SUCCESS;
+}
+
+void *smt_calloc(const size_t count, const size_t size){
+  // allocate pointer
+  void *ptr = my_calloc(count, size);
+  if(kernel_smt_attach(&all_memories, ptr) != RETVAL_SUCCESS){
+    ERROR("More than %d buffers are allocated.\n", NITEMS_MAX);
+    ERROR("This is not accepted by default.\n");
+    ERROR("Define NITEMS_MAX explicitly to change this behaviour\n");
+    exit(EXIT_FAILURE);
+  }
+  return ptr;
+}
+
+void *smt_attach(void *ptr){
+  kernel_smt_attach(&all_memories, ptr);
+  return ptr;
+}
+
+/* functions which decrease members */
+static int kernel_smt_detach(smt_t **node_root, const void *ptr){
+  smt_t *node_prev = NULL;
+  smt_t *node_curr = NULL;
+  // we should be able to find it, since we know there is
+  if(search(node_root, &node_curr, &node_prev, ptr) != RETVAL_SUCCESS){
+    return RETVAL_FAILURE;
+  }
+  if(node_prev == NULL){
+    // update root node
+    *node_root = node_curr->node_next;
+  }else{
+    // update link
+    node_prev->node_next = node_curr->node_next;
+  }
+  my_free(node_curr);
+  return RETVAL_SUCCESS;
+}
+
+void smt_detach(const void *ptr){
+  if(kernel_smt_detach(&all_memories, ptr) != RETVAL_SUCCESS){
+    ERROR("Cannot find %p in the allocated list\n", ptr);
+    exit(EXIT_FAILURE);
+  }
+}
+
+void smt_free(void *ptr){
+  if(kernel_smt_detach(&all_memories, ptr) != RETVAL_SUCCESS){
+    ERROR("Cannot find %p in the allocated list\n", ptr);
+    exit(EXIT_FAILURE);
+  }
+  my_free(ptr);
+}
+
+void smt_free_all(void){
+  while(all_memories != NULL){
+    void *ptr = all_memories->ptr;
+    smt_free(ptr);
+  }
+}
+
+#undef RETVAL_SUCCESS
+#undef RETVAL_FAILURE
+#undef NITEMS_MAX
 
 /* auxiliary functions which are used by writer and reader */
 
@@ -81,12 +212,12 @@ static int convert_endian(void *val, const size_t size){
     return -1;
   }
   size_t n_bytes = size/sizeof(uint8_t);
-  uint8_t *buf = my_calloc(n_bytes, sizeof(uint8_t));
+  uint8_t *buf = smt_calloc(n_bytes, sizeof(uint8_t));
   for(size_t i = 0; i < n_bytes; i++){
     buf[i] = ((uint8_t *)val)[n_bytes-i-1];
   }
   memcpy(val, buf, size);
-  my_free(buf);
+  smt_free(buf);
   return 0;
 }
 
@@ -129,6 +260,10 @@ static int find_pattern(size_t *location, const void *p0, const size_t size_p0, 
   return -1;
 }
 
+void error_handlings(void){
+  smt_free_all();
+}
+
 /* reader */
 
 static int load_magic_string(size_t *buf_size, FILE *fp){
@@ -142,7 +277,7 @@ static int load_magic_string(size_t *buf_size, FILE *fp){
   size_t nitems = strlen(magic_string);
   // allocate buffer and load from file
   // NOTE: file pointer is moved forward as well
-  uint8_t *buf = my_calloc(nitems, sizeof(uint8_t));
+  uint8_t *buf = smt_calloc(nitems, sizeof(uint8_t));
   {
     size_t retval = fread(buf, sizeof(uint8_t), nitems, fp);
     if(retval != nitems){
@@ -158,7 +293,7 @@ static int load_magic_string(size_t *buf_size, FILE *fp){
     ERROR("magic string \"\\x93NUMPY\" cannot be found\n");
     return -1;
   }
-  my_free(buf);
+  smt_free(buf);
   return 0;
 }
 
@@ -225,7 +360,7 @@ static int load_header_len(size_t *header_len, size_t *buf_size, size_t major_ve
     nitems = *buf_size/sizeof(uint8_t);
   }
   /* ! allocate buffer and load corresponding memory size from file ! 8 ! */
-  uint8_t *buf = my_calloc(nitems, sizeof(uint8_t));
+  uint8_t *buf = smt_calloc(nitems, sizeof(uint8_t));
   {
     size_t retval = fread(buf, sizeof(uint8_t), nitems, fp);
     if(retval != nitems){
@@ -245,7 +380,7 @@ static int load_header_len(size_t *header_len, size_t *buf_size, size_t major_ve
     // interpret as a 4-byte value
     *header_len = *((uint32_t *)buf);
   }
-  my_free(buf);
+  smt_free(buf);
   LOGGING("header_len: %zu\n", *header_len);
   return 0;
 }
@@ -257,7 +392,7 @@ static int load_dict_and_padding(uint8_t **dict_and_padding, size_t *buf_size, s
    *   to move file pointer "fp" forward
    */
   size_t nitems = header_len/sizeof(uint8_t);
-  *dict_and_padding = my_calloc(nitems, sizeof(uint8_t));
+  *dict_and_padding = smt_calloc(nitems, sizeof(uint8_t));
   {
     size_t retval = fread(*dict_and_padding, sizeof(uint8_t), nitems, fp);
     if(retval != nitems){
@@ -328,7 +463,7 @@ static int extract_dict(char **dict, uint8_t *dict_and_padding, size_t header_le
   //   {'descr': VALUE, 'fortran_order': VALUE, 'shape': VALUE}
   //            ^      ^                ^      ^        ^
   size_t n_chars_dict = 0;
-  bool *is_dict = my_calloc(e-s+1, sizeof(bool));
+  bool *is_dict = smt_calloc(e-s+1, sizeof(bool));
   {
     bool is_inside_s_quotations = false;
     bool is_inside_d_quotations = false;
@@ -362,14 +497,14 @@ static int extract_dict(char **dict, uint8_t *dict_and_padding, size_t header_le
     }
   }
   // copy flagged part to dict
-  *dict = my_calloc(n_chars_dict+1, sizeof(char)); // + NUL
+  *dict = smt_calloc(n_chars_dict+1, sizeof(char)); // + NUL
   for(size_t i = s, j = 0; i <= e; i++){
     if(is_dict[i-s]){
       (*dict)[j] = dict_and_padding[i];
       j++;
     }
   }
-  my_free(is_dict);
+  smt_free(is_dict);
   LOGGING("dict: %s\n", *dict);
   return 0;
 }
@@ -476,7 +611,7 @@ static int find_dict_value(const char key[], char **val, const char *dict){
   }
   // 3. now we know where val starts and terminates, so extract it
   size_t n_chars_val = val_e-val_s+1;
-  *val = my_calloc(n_chars_val+1, sizeof(char)); // + NUL
+  *val = smt_calloc(n_chars_val+1, sizeof(char)); // + NUL
   memcpy(*val, dict+val_s, sizeof(char)*n_chars_val);
   return 0;
 }
@@ -493,7 +628,7 @@ static int extract_shape(size_t *ndim, size_t **shape, const char *val){
     // copy "val" to a buffer "str" after removing parentheses
     size_t n_chars_val = strlen(val);
     // no parentheses (-2), with NUL (+1)
-    str = my_calloc(n_chars_val-2+1, sizeof(char));
+    str = smt_calloc(n_chars_val-2+1, sizeof(char));
     memcpy(str, val+1, sizeof(char)*(n_chars_val-2));
     // parse "val" to know "ndim",
     // e.g.,
@@ -516,16 +651,16 @@ static int extract_shape(size_t *ndim, size_t **shape, const char *val){
         (*ndim)++;
       }
     }
-    my_free(str);
+    smt_free(str);
   }
   // 2. allocate shape and assign size in each dimension
-  *shape = my_calloc(*ndim, sizeof(size_t));
+  *shape = smt_calloc(*ndim, sizeof(size_t));
   {
     char *str = NULL;
     // copy "val" to a buffer "str" after removing parentheses
     size_t n_chars_val = strlen(val);
     // no parentheses (-2), with NUL (+1)
-    str = my_calloc(n_chars_val-2+1, sizeof(char));
+    str = smt_calloc(n_chars_val-2+1, sizeof(char));
     memcpy(str, val+1, sizeof(char)*(n_chars_val-2));
     // parse value to know shape
     // e.g.,
@@ -549,7 +684,7 @@ static int extract_shape(size_t *ndim, size_t **shape, const char *val){
         j++;
       }
     }
-    my_free(str);
+    smt_free(str);
   }
   LOGGING("ndim: %zu\n", *ndim);
   for(size_t i = 0; i < *ndim; i++){
@@ -565,7 +700,7 @@ static int extract_dtype(char **dtype, const char *val){
    */
   REJECT_NULL(val, -1);
   size_t n_chars_val = strlen(val);
-  *dtype = my_calloc(n_chars_val+1, sizeof(char));
+  *dtype = smt_calloc(n_chars_val+1, sizeof(char));
   memcpy(*dtype, val, sizeof(char)*n_chars_val);
   (*dtype)[n_chars_val] = NUL;
   LOGGING("dtype: %s\n", *dtype);
@@ -648,77 +783,92 @@ size_t simple_npyio_r_header(size_t *ndim, size_t **shape, char **dtype, bool *i
   {
     header_size = 0;
     size_t buf_size;
-    /* ! check magic string ! 4 ! */
+    /* ! check magic string ! 5 ! */
     if(load_magic_string(&buf_size, fp) < 0){
+      error_handlings();
       return 0;
     }
     header_size += buf_size;
-    /* ! check versions ! 4 ! */
+    /* ! check versions ! 5 ! */
     if(load_versions(&major_version, &minor_version, &buf_size, fp) < 0){
+      error_handlings();
       return 0;
     }
     header_size += buf_size;
-    /* ! load HEADER_LEN ! 4 ! */
+    /* ! load HEADER_LEN ! 5 ! */
     if(load_header_len(&header_len, &buf_size, major_version, fp) < 0){
+      error_handlings();
       return 0;
     }
     header_size += buf_size;
-    /* ! load dictionary and padding ! 4 ! */
+    /* ! load dictionary and padding ! 5 ! */
     if(load_dict_and_padding(&dict_and_padding, &buf_size, header_len, fp) < 0){
+      error_handlings();
       return 0;
     }
     header_size += buf_size;
   }
-  /* ! step 2: extract dictionary ! 9 ! */
+  /* ! step 2: extract dictionary ! 10 ! */
   // extract dict from dict + padding
   // also non-crutial spaces (spaces outside quotations) are eliminated
   //   e.g., {'descr': '<i4','fortran_order': False,'shape': (3, 5, )}
   //      -> {'descr':'<i4','fortran_order':False,'shape':(3,5,)}
   char *dict = NULL;
   if(extract_dict(&dict, dict_and_padding, header_len) < 0){
+    error_handlings();
     return 0;
   }
-  my_free(dict_and_padding);
+  smt_free(dict_and_padding);
   /* step 3: extract information which are needed to reconstruct array */
   /* in particular, shape, datatype, and memory order of the array */
   // shape
   {
-    /* ! extract value of shape ! 8 ! */
+    /* ! extract value of shape ! 10 ! */
     char *val = NULL;
     if(find_dict_value("'shape'", &val, dict) < 0){
+      error_handlings();
       return 0;
     }
     if(extract_shape(ndim, shape, val) < 0){
+      error_handlings();
       return 0;
     }
-    my_free(val);
+    smt_free(val);
   }
   // descr (data type)
   {
-    /* ! extract value of descr ! 8 ! */
+    /* ! extract value of descr ! 10 ! */
     char *val = NULL;
     if(find_dict_value("'descr'", &val, dict) < 0){
+      error_handlings();
       return 0;
     }
     if(extract_dtype(dtype, val) < 0){
+      error_handlings();
       return 0;
     }
-    my_free(val);
+    smt_free(val);
   }
   // fortran order (memory order)
   {
-    /* ! extract value of fortran_order ! 8 ! */
+    /* ! extract value of fortran_order ! 10 ! */
     char *val = NULL;
     if(find_dict_value("'fortran_order'", &val, dict) < 0){
+      error_handlings();
       return 0;
     }
     if(extract_is_fortran_order(is_fortran_order, val) < 0){
+      error_handlings();
       return 0;
     }
-    my_free(val);
+    smt_free(val);
   }
   // clean-up buffer
-  my_free(dict);
+  smt_free(dict);
+  // detach memories from memory pool to use outside
+  // user is responsible for deallocating them
+  smt_detach(*shape);
+  smt_detach(*dtype);
   return header_size;
 }
 
@@ -746,7 +896,7 @@ static int create_descr_value(char **value, const char dtype[]){
     return -1;
   }
   // +1 for NUL
-  *value = my_calloc(n_chars+1, sizeof(char));
+  *value = smt_calloc(n_chars+1, sizeof(char));
   // the last character is NUL, just in case
   //   (calloc should assign 0 already)
   (*value)[n_chars] = NUL;
@@ -767,14 +917,14 @@ static int create_fortran_order_value(char **value, const bool is_fortran_order)
     const char string[] = {"True"};
     const size_t n_chars = strlen(string);
     // "True" + NUL
-    *value = my_calloc(n_chars+1, sizeof(char));
+    *value = smt_calloc(n_chars+1, sizeof(char));
     memcpy(*value, string, sizeof(char)*n_chars);
     (*value)[n_chars] = NUL;
   }else{
     const char string[] = {"False"};
     const size_t n_chars = strlen(string);
     // "False" + NUL
-    *value = my_calloc(n_chars+1, sizeof(char));
+    *value = smt_calloc(n_chars+1, sizeof(char));
     memcpy(*value, string, sizeof(char)*n_chars);
     (*value)[n_chars] = NUL;
   }
@@ -809,7 +959,7 @@ static int create_shape_value(char **value, const size_t ndim, const size_t *sha
   // 1. count number of digits (e.g., 5: 1 digit, 15: 2 digits)
   //   of shape in each direction
   size_t *n_digits = NULL;
-  n_digits = my_calloc(ndim, sizeof(size_t));
+  n_digits = smt_calloc(ndim, sizeof(size_t));
   for(size_t i = 0; i < ndim; i++){
     // simple way to compute digits,
     //   dividing by 10 as many as possible
@@ -828,14 +978,14 @@ static int create_shape_value(char **value, const size_t ndim, const size_t *sha
     n_chars += n_digits[i]+1;
   }
   // 3. allocate memory and assign values
-  *value = my_calloc(n_chars, sizeof(char));
+  *value = smt_calloc(n_chars, sizeof(char));
   for(size_t i = 0, offset = 1; i < ndim; i++){
     // assign size of the array in each direction to "value"
     //   after converting the integer to characters, e.g., 128 -> "128"
     char *buf = NULL;
     size_t n_digit = n_digits[i];
     // + "," and "NUL"
-    buf = my_calloc(n_digit+2, sizeof(char));
+    buf = smt_calloc(n_digit+2, sizeof(char));
     // including ","
     {
       int retval = snprintf(buf, n_digit+2, "%zu,", shape[i]);
@@ -847,7 +997,7 @@ static int create_shape_value(char **value, const size_t ndim, const size_t *sha
     // copy result excluding NUL
     memcpy((*value)+offset, buf, sizeof(char)*(n_digit+1));
     offset += n_digit+1;
-    my_free(buf);
+    smt_free(buf);
   }
   // first character is a parenthesis
   (*value)[        0] = '(';
@@ -856,7 +1006,7 @@ static int create_shape_value(char **value, const size_t ndim, const size_t *sha
   // last character is NUL
   (*value)[n_chars-1] = NUL;
   // clean-up buffer
-  my_free(n_digits);
+  smt_free(n_digits);
   return 0;
 }
 
@@ -900,7 +1050,7 @@ static int create_dict(char **dict, size_t *n_dict, const size_t ndim, const siz
   }
   /* ! 2. assign all elements (strings) which compose dict ! 20 ! */
   const size_t n_elements_dict = 13;
-  char **elements = my_calloc(n_elements_dict, sizeof(char *));
+  char **elements = smt_calloc(n_elements_dict, sizeof(char *));
   // initial wave bracket
   elements[ 0] = "{";
   // 'descr':descr_value
@@ -935,7 +1085,7 @@ static int create_dict(char **dict, size_t *n_dict, const size_t ndim, const siz
   // last NUL
   n_chars_dict += 1;
   // 4. allocate dict and assign above "elements"
-  *dict = my_calloc(n_chars_dict, sizeof(char));
+  *dict = smt_calloc(n_chars_dict, sizeof(char));
   for(size_t i = 0, offset = 0; i < n_elements_dict; i++){
     size_t n_chars = strlen(elements[i]);
     memcpy((*dict)+offset, elements[i], sizeof(char)*n_chars);
@@ -943,10 +1093,10 @@ static int create_dict(char **dict, size_t *n_dict, const size_t ndim, const siz
   }
   (*dict)[n_chars_dict-1] = NUL;
   // clean-up all working memories
-  my_free(descr_value);
-  my_free(fortran_order_value);
-  my_free(shape_value);
-  my_free(elements);
+  smt_free(descr_value);
+  smt_free(fortran_order_value);
+  smt_free(shape_value);
+  smt_free(elements);
   // as the length of "dict", use length WITHOUT NUL,
   // i.e. strlen(*dict)
   *n_dict = strlen(*dict);
@@ -1011,7 +1161,7 @@ static int create_padding(uint8_t **padding, size_t *n_padding, uint8_t *major_v
   size_t size_padding = size_header-size_except_padding;
   /* ! create padding ! 6 ! */
   *n_padding = size_padding/sizeof(uint8_t);
-  *padding = my_calloc(*n_padding, sizeof(uint8_t));
+  *padding = smt_calloc(*n_padding, sizeof(uint8_t));
   // many ' 's: 0x20
   memset(*padding, 0x20, sizeof(uint8_t)*(*n_padding-1));
   // last '\n': 0x0a
@@ -1042,14 +1192,14 @@ static int create_header_len(uint8_t **header_len, size_t *n_header_len, const u
     // major version 2, use uint32_t to store header_len
     uint32_t header_len_uint32_t = (uint32_t)n_dict+(uint32_t)n_padding;
     *n_header_len = sizeof(uint32_t)/sizeof(uint8_t);
-    *header_len = my_calloc(*n_header_len, sizeof(uint8_t));
+    *header_len = smt_calloc(*n_header_len, sizeof(uint8_t));
     memcpy(*header_len, &header_len_uint32_t, *n_header_len);
     LOGGING("header_len (uint32_t): %u\n", header_len_uint32_t);
   }else{
     // major version 1, use uint16_t to store header_len
     uint16_t header_len_uint16_t = (uint16_t)n_dict+(uint16_t)n_padding;
     *n_header_len = sizeof(uint16_t)/sizeof(uint8_t);
-    *header_len = my_calloc(*n_header_len, sizeof(uint8_t));
+    *header_len = smt_calloc(*n_header_len, sizeof(uint8_t));
     memcpy(*header_len, &header_len_uint16_t, *n_header_len);
     LOGGING("header_len (uint16_t): %hu\n", header_len_uint16_t);
   }
@@ -1091,23 +1241,26 @@ size_t simple_npyio_w_header(const size_t ndim, const size_t *shape, const char 
   const size_t n_magic_string = strlen(magic_string);
   /* ! minor_version, always 0 ! 1 ! */
   const uint8_t minor_version = 0;
-  /* ! dictionary (and its size) ! 5 ! */
+  /* ! dictionary (and its size) ! 6 ! */
   char *dict = NULL;
   size_t n_dict;
   if(create_dict(&dict, &n_dict, ndim, shape, dtype, is_fortran_order) != 0){
+    error_handlings();
     return 0;
   }
-  /* ! major_version and padding (and its size) ! 6 ! */
+  /* ! major_version and padding (and its size) ! 7 ! */
   uint8_t major_version;
   uint8_t *padding = NULL;
   size_t n_padding;
   if(create_padding(&padding, &n_padding, &major_version, n_dict) != 0){
+    error_handlings();
     return 0;
   }
-  /* ! comptue header_len ! 5 ! */
+  /* ! comptue header_len ! 6 ! */
   uint8_t *header_len = NULL;
   size_t n_header_len;
   if(create_header_len(&header_len, &n_header_len, major_version, n_dict, n_padding) != 0){
+    error_handlings();
     return 0;
   }
   /* dump all information to a buffer "header" and compute total size "header_size" */
@@ -1118,8 +1271,8 @@ size_t simple_npyio_w_header(const size_t ndim, const size_t *shape, const char 
     const size_t n_datasets = 6;
     size_t *sizes   = NULL;
     size_t *offsets = NULL;
-    sizes   = my_calloc(n_datasets, sizeof(size_t));
-    offsets = my_calloc(n_datasets, sizeof(size_t));
+    sizes   = smt_calloc(n_datasets, sizeof(size_t));
+    offsets = smt_calloc(n_datasets, sizeof(size_t));
     sizes[0] = sizeof(   char)*n_magic_string;
     sizes[1] = sizeof(uint8_t);
     sizes[2] = sizeof(uint8_t);
@@ -1138,7 +1291,7 @@ size_t simple_npyio_w_header(const size_t ndim, const size_t *shape, const char 
     }
     // allocate buffer to store whole header
     header_nitems = header_size/sizeof(uint8_t);
-    header = my_calloc(header_nitems, sizeof(uint8_t));
+    header = smt_calloc(header_nitems, sizeof(uint8_t));
     // write all information to a buffer "header"
     memcpy(header+offsets[0], magic_string,   sizes[0]);
     memcpy(header+offsets[1], &major_version, sizes[1]);
@@ -1147,8 +1300,8 @@ size_t simple_npyio_w_header(const size_t ndim, const size_t *shape, const char 
     memcpy(header+offsets[4], dict,           sizes[4]);
     memcpy(header+offsets[5], padding,        sizes[5]);
     // clean-up buffers
-    my_free(sizes);
-    my_free(offsets);
+    smt_free(sizes);
+    smt_free(offsets);
   }
   LOGGING("header_size: %zu\n", header_size);
   /* write to the given file stream */
@@ -1156,14 +1309,15 @@ size_t simple_npyio_w_header(const size_t ndim, const size_t *shape, const char 
     size_t retval = fwrite(header, sizeof(uint8_t), header_nitems, fp);
     if(retval != header_nitems){
       ERROR("fwrite failed (%zu items written, while %zu items given)\n", retval, header_nitems);
+      error_handlings();
       return 0;
     }
   }
   // clean-up all buffers
-  my_free(dict);
-  my_free(padding);
-  my_free(header_len);
-  my_free(header);
+  smt_free(dict);
+  smt_free(padding);
+  smt_free(header_len);
+  smt_free(header);
   return header_size;
 }
 
