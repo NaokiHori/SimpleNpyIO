@@ -1,0 +1,446 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+    <title>Implementation - reader &#8212; SimpleNpyIO 0.3 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+    <script src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Implementation - error handlings" href="implementation_err_hndl.html" />
+    <link rel="prev" title="Implementation - writer" href="implementation_writer.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">SimpleNpyIO</a></h1>
+
+
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=NaokiHori&repo=SimpleNpyIO&type=true&count=true&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="test.html">Test</a></li>
+<li class="toctree-l1"><a class="reference internal" href="implementation_writer.html">Implementation - writer</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Implementation - reader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="implementation_err_hndl.html">Implementation - error handlings</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="implementation_writer.html" title="previous chapter">Implementation - writer</a></li>
+      <li>Next: <a href="implementation_err_hndl.html" title="next chapter">Implementation - error handlings</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="implementation-reader">
+<h1>Implementation - reader<a class="headerlink" href="#implementation-reader" title="Permalink to this heading">¶</a></h1>
+<p>Read header of <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.lib.format.html">npy</a> file.</p>
+<section id="definition">
+<h2>Definition<a class="headerlink" href="#definition" title="Permalink to this heading">¶</a></h2>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">size_t</span><span class="w"> </span><span class="nf">simple_npyio_r_header</span><span class="p">(</span><span class="w"></span>
+<span class="w">  </span><span class="kt">size_t</span><span class="w"> </span><span class="o">*</span><span class="n">ndim</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="kt">size_t</span><span class="w"> </span><span class="o">**</span><span class="n">shape</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">**</span><span class="n">dtype</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="o">*</span><span class="n">is_fortran_order</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="kt">FILE</span><span class="w"> </span><span class="o">*</span><span class="n">fp</span><span class="w"></span>
+<span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>intent</p></th>
+<th class="head"><p>description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>ndim</p></td>
+<td><p>out</p></td>
+<td><p>dimension of dataset</p></td>
+</tr>
+<tr class="row-odd"><td><p>shape</p></td>
+<td><p>out</p></td>
+<td><p>sizes in each direction</p></td>
+</tr>
+<tr class="row-even"><td><p>dtype</p></td>
+<td><p>out</p></td>
+<td><p>data type of dataset</p></td>
+</tr>
+<tr class="row-odd"><td><p>is_fortran_order</p></td>
+<td><p>out</p></td>
+<td><p>memory order</p></td>
+</tr>
+<tr class="row-even"><td><p>fp</p></td>
+<td><p>in</p></td>
+<td><p>file stream</p></td>
+</tr>
+<tr class="row-odd"><td><p>header_size</p></td>
+<td><p>return</p></td>
+<td><p>size of header which is written</p></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Heap memories of <code class="docutils literal notranslate"><span class="pre">shape</span></code> and <code class="docutils literal notranslate"><span class="pre">dtype</span></code> are allocated inside this library.
+Deallocating them correctly is the users’ responsibility to avoid memory leak.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>File should be opened a priori by the user with a readable mode (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;r&quot;</span></code>).</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function returns <code class="docutils literal notranslate"><span class="pre">header_size</span></code>, which is the size of header loaded from the given file stream <code class="docutils literal notranslate"><span class="pre">fp</span></code> when all succeeded.
+<code class="docutils literal notranslate"><span class="pre">0</span></code> is returned, on the other hand, when failed.
+It is recommended to check the returned value.</p>
+</div>
+</section>
+<section id="description">
+<h2>Description<a class="headerlink" href="#description" title="Permalink to this heading">¶</a></h2>
+<p>Loading procedure of a <cite>npy</cite> header is taken care of by a main function <code class="docutils literal notranslate"><span class="pre">simple_npyio_r_header</span></code>, which consists of the following process:</p>
+<div class="graphviz"><object data="_images/graphviz-e572d1ae9059a16e6bb0070d8b5579010d6f0309.svg" type="image/svg+xml" class="graphviz">
+<p class="warning">digraph {
+
+   spline = false;
+
+   start [
+      label = &quot;Start&quot;;
+      shape = oval;
+   ];
+   magic_string [
+      label = &quot;Check\nmagic string&quot;;
+      shape = diamond;
+   ];
+   versions [
+      label = &quot;Check\nversions&quot;;
+      shape = diamond;
+   ];
+   header_len [
+      label = &quot;Load\nHEADER_LEN&quot;;
+      shape = diamond;
+   ];
+   load_dict_padding [
+      label = &quot;Load dictionary\nand padding&quot;;
+      shape = diamond;
+   ];
+   extract_dictionary [
+      label = &quot;Purify\ndictionary&quot;;
+      shape = diamond;
+   ];
+   extract_values [
+      label = &quot;Extract values\nfrom dictionary&quot;;
+      shape = diamond;
+   ];
+   end [
+      label = &quot;End&quot;;
+      shape = oval;
+   ];
+   error [
+      label = &quot;Error\nhandlings&quot;
+      shape = rect;
+   ];
+
+   start:s              -&gt; magic_string:n;
+   magic_string:s       -&gt; versions:n           [label=&quot;succeeded&quot;];
+   magic_string:e       -&gt; error                [label=&quot;failed&quot;]
+   versions:s           -&gt; header_len:n         [label=&quot;succeeded&quot;];
+   versions:e           -&gt; error                [label=&quot;failed&quot;]
+   header_len:s         -&gt; load_dict_padding:n  [label=&quot;succeeded&quot;];
+   header_len:e         -&gt; error                [label=&quot;failed&quot;]
+   load_dict_padding:s  -&gt; extract_dictionary:n [label=&quot;succeeded&quot;];
+   load_dict_padding:e  -&gt; error                [label=&quot;failed&quot;]
+   extract_dictionary:s -&gt; extract_values:n     [label=&quot;succeeded&quot;];
+   extract_dictionary:e -&gt; error                [label=&quot;failed&quot;]
+   extract_values:s     -&gt; end                  [label=&quot;return header_size&quot;];
+   extract_values:e     -&gt; error                [label=&quot;failed&quot;]
+   error:s              -&gt; end                  [label=&quot;return 0&quot;];
+
+}</p></object></div>
+<p>Detailed descriptions can be found hereafter.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>All snippets come from <a class="reference external" href="https://github.com/NaokiHori/SimpleNpyIO/blob/main/src/simple_npyio.c">src/simple_npyio.c</a>.</p>
+</div>
+<ol class="arabic">
+<li><p>Check magic string</p>
+<p>All <cite>npy</cite> files start with a fixed magic characters <code class="docutils literal notranslate"><span class="pre">\x93NUMPY</span></code>, which is defined as a global variable at the beginning of the source.</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">15</span><span class="k">static</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="n">magic_string</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="s">&quot;</span><span class="se">\x93</span><span class="s">NUMPY&quot;</span><span class="p">};</span><span class="w"></span>
+</pre></div>
+</div>
+<p>As a first step of reading procedure, we check whether the currently-opened file really has this signature by comparing the first 6 bytes:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">787</span><span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="n">load_magic_string</span><span class="p">(</span><span class="o">&amp;</span><span class="n">buf_size</span><span class="p">,</span><span class="w"> </span><span class="n">fp</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">788</span><span class="w">      </span><span class="n">error_handlings</span><span class="p">();</span><span class="w"></span>
+<span class="linenos">789</span><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">790</span><span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="linenos">791</span><span class="w">    </span><span class="n">header_size</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">buf_size</span><span class="p">;</span><span class="w"></span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">buf_size</span></code> describes the size (in bytes) which is loaded from the file.</p>
+</div>
+</li>
+<li><p>Check versions</p>
+<p>For the time being version <cite>1.0</cite>, <cite>2.0</cite>, and <cite>3.0</cite> are accepted, which is checked here.</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">793</span><span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="n">load_versions</span><span class="p">(</span><span class="o">&amp;</span><span class="n">major_version</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">minor_version</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">buf_size</span><span class="p">,</span><span class="w"> </span><span class="n">fp</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">794</span><span class="w">      </span><span class="n">error_handlings</span><span class="p">();</span><span class="w"></span>
+<span class="linenos">795</span><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">796</span><span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="linenos">797</span><span class="w">    </span><span class="n">header_size</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">buf_size</span><span class="p">;</span><span class="w"></span>
+</pre></div>
+</div>
+</li>
+<li><p>Load <code class="docutils literal notranslate"><span class="pre">HEADER_LEN</span></code></p>
+<p>As the title says, we load <code class="docutils literal notranslate"><span class="pre">HEADER_LEN</span></code>, which is the size of dictionary and padding.</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">799</span><span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="n">load_header_len</span><span class="p">(</span><span class="o">&amp;</span><span class="n">header_len</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">buf_size</span><span class="p">,</span><span class="w"> </span><span class="n">major_version</span><span class="p">,</span><span class="w"> </span><span class="n">fp</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">800</span><span class="w">      </span><span class="n">error_handlings</span><span class="p">();</span><span class="w"></span>
+<span class="linenos">801</span><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">802</span><span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="linenos">803</span><span class="w">    </span><span class="n">header_size</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">buf_size</span><span class="p">;</span><span class="w"></span>
+</pre></div>
+</div>
+<details>
+<summary>
+More details: <code class="docutils literal notranslate"><span class="pre">load_header_len</span></code></summary><p>The data size of <code class="docutils literal notranslate"><span class="pre">HEADER_LEN</span></code> differs depending on the major version, i.e., generally 2 bytes (<code class="docutils literal notranslate"><span class="pre">unsigned</span> <span class="pre">short</span></code>) for <code class="docutils literal notranslate"><span class="pre">major_version</span> <span class="pre">=</span> <span class="pre">1</span></code> while 4 bytes (<code class="docutils literal notranslate"><span class="pre">unsigned</span> <span class="pre">int</span></code>) for <code class="docutils literal notranslate"><span class="pre">major_version</span> <span class="pre">=</span> <span class="pre">2</span></code>, which should be taken into account when loaded:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">352</span><span class="w">  </span><span class="kt">size_t</span><span class="w"> </span><span class="n">nitems</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">353</span><span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="n">major_version</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">354</span><span class="w">    </span><span class="o">*</span><span class="n">buf_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="kt">uint16_t</span><span class="p">);</span><span class="w"></span>
+<span class="linenos">355</span><span class="w">    </span><span class="c1">// usually 2</span>
+<span class="linenos">356</span><span class="w">    </span><span class="n">nitems</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="n">buf_size</span><span class="o">/</span><span class="k">sizeof</span><span class="p">(</span><span class="kt">uint8_t</span><span class="p">);</span><span class="w"></span>
+<span class="linenos">357</span><span class="w">  </span><span class="p">}</span><span class="k">else</span><span class="p">{</span><span class="w"></span>
+<span class="linenos">358</span><span class="w">    </span><span class="o">*</span><span class="n">buf_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="kt">uint32_t</span><span class="p">);</span><span class="w"></span>
+<span class="linenos">359</span><span class="w">    </span><span class="c1">// usually 4</span>
+<span class="linenos">360</span><span class="w">    </span><span class="n">nitems</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="n">buf_size</span><span class="o">/</span><span class="k">sizeof</span><span class="p">(</span><span class="kt">uint8_t</span><span class="p">);</span><span class="w"></span>
+<span class="linenos">361</span><span class="w">  </span><span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Once the data size (interpreted as the number of <code class="docutils literal notranslate"><span class="pre">uint8_t</span></code> values: <code class="docutils literal notranslate"><span class="pre">nitems</span></code>) is specified, information is loaded from file to a buffer <code class="docutils literal notranslate"><span class="pre">buf</span></code>:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">363</span><span class="w">  </span><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="n">buf</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">smt_calloc</span><span class="p">(</span><span class="n">nitems</span><span class="p">,</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="kt">uint8_t</span><span class="p">));</span><span class="w"></span>
+<span class="linenos">364</span><span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="linenos">365</span><span class="w">    </span><span class="kt">size_t</span><span class="w"> </span><span class="n">retval</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fread</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="kt">uint8_t</span><span class="p">),</span><span class="w"> </span><span class="n">nitems</span><span class="p">,</span><span class="w"> </span><span class="n">fp</span><span class="p">);</span><span class="w"></span>
+<span class="linenos">366</span><span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="n">retval</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">nitems</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">367</span><span class="w">      </span><span class="n">ERROR</span><span class="p">(</span><span class="s">&quot;fread failed (%zu items loaded, while %zu items requested)</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">retval</span><span class="p">,</span><span class="w"> </span><span class="n">nitems</span><span class="p">);</span><span class="w"></span>
+<span class="linenos">368</span><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="mi">-1</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">369</span><span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="linenos">370</span><span class="w">  </span><span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Note that the endian should be converted if the architecture is big-endian-based, since <cite>npy</cite> file stores <code class="docutils literal notranslate"><span class="pre">HEADER_LEN</span></code> in little-endian form:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">372</span><span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="n">is_big_endian</span><span class="p">()){</span><span class="w"></span>
+<span class="linenos">373</span><span class="w">    </span><span class="n">convert_endian</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="o">*</span><span class="n">buf_size</span><span class="p">);</span><span class="w"></span>
+<span class="linenos">374</span><span class="w">  </span><span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Finally series of <code class="docutils literal notranslate"><span class="pre">uint8_t</span></code> values are interpreted as a single value whose data type is <code class="docutils literal notranslate"><span class="pre">uint16_t</span></code> and <code class="docutils literal notranslate"><span class="pre">uint32_t</span></code> for <code class="docutils literal notranslate"><span class="pre">major_version</span> <span class="pre">=</span> <span class="pre">1</span></code> and <code class="docutils literal notranslate"><span class="pre">2</span></code>, respectively:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">376</span><span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="n">major_version</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">377</span><span class="w">    </span><span class="c1">// interpret as a 2-byte value</span>
+<span class="linenos">378</span><span class="w">    </span><span class="o">*</span><span class="n">header_len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">((</span><span class="kt">uint16_t</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">buf</span><span class="p">);</span><span class="w"></span>
+<span class="linenos">379</span><span class="w">  </span><span class="p">}</span><span class="k">else</span><span class="p">{</span><span class="w"></span>
+<span class="linenos">380</span><span class="w">    </span><span class="c1">// interpret as a 4-byte value</span>
+<span class="linenos">381</span><span class="w">    </span><span class="o">*</span><span class="n">header_len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">((</span><span class="kt">uint32_t</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">buf</span><span class="p">);</span><span class="w"></span>
+<span class="linenos">382</span><span class="w">  </span><span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+</details></li>
+<li><p>Load dictionary and padding</p>
+<p>In the previous step, we know the total size of dictionary and padding, namely <code class="docutils literal notranslate"><span class="pre">HEADER_LEN</span></code>.
+Here <code class="docutils literal notranslate"><span class="pre">HEADER_LEN</span></code> bytes are loaded from file to extract dictionary and padding.</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">805</span><span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="n">load_dict_and_padding</span><span class="p">(</span><span class="o">&amp;</span><span class="n">dict_and_padding</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">buf_size</span><span class="p">,</span><span class="w"> </span><span class="n">header_len</span><span class="p">,</span><span class="w"> </span><span class="n">fp</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">806</span><span class="w">      </span><span class="n">error_handlings</span><span class="p">();</span><span class="w"></span>
+<span class="linenos">807</span><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">808</span><span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="linenos">809</span><span class="w">    </span><span class="n">header_size</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">buf_size</span><span class="p">;</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Nothing complicated exists here; basically this function simply calls <code class="docutils literal notranslate"><span class="pre">fread</span></code> with some error checks.
+Now all information are loaded from file and we do not have to access to the give file stream hereafter.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although padding is not necessary to obtain the information of the stored dataset, here we load it as well as the dictionary to move the file pointer, so that users can simply use <code class="docutils literal notranslate"><span class="pre">fread</span></code> just after this function to load the main dataset.
+The size of padding is 128 bytes in maximum and the overhead is negligibly small.</p>
+</div>
+</li>
+<li><p>Purify dictionary</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">812</span><span class="w">  </span><span class="c1">// extract dict from dict + padding</span>
+<span class="linenos">813</span><span class="w">  </span><span class="c1">// also non-crutial spaces (spaces outside quotations) are eliminated</span>
+<span class="linenos">814</span><span class="w">  </span><span class="c1">//   e.g., {&#39;descr&#39;: &#39;&lt;i4&#39;,&#39;fortran_order&#39;: False,&#39;shape&#39;: (3, 5, )}</span>
+<span class="linenos">815</span><span class="w">  </span><span class="c1">//      -&gt; {&#39;descr&#39;:&#39;&lt;i4&#39;,&#39;fortran_order&#39;:False,&#39;shape&#39;:(3,5,)}</span>
+<span class="linenos">816</span><span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">dict</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">817</span><span class="w">  </span><span class="k">if</span><span class="p">(</span><span class="n">extract_dict</span><span class="p">(</span><span class="o">&amp;</span><span class="n">dict</span><span class="p">,</span><span class="w"> </span><span class="n">dict_and_padding</span><span class="p">,</span><span class="w"> </span><span class="n">header_len</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">818</span><span class="w">    </span><span class="n">error_handlings</span><span class="p">();</span><span class="w"></span>
+<span class="linenos">819</span><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">820</span><span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="linenos">821</span><span class="w">  </span><span class="n">smt_free</span><span class="p">(</span><span class="n">dict_and_padding</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+<p>In the previous step, we obtained a mixture of dictionary and padding.
+The latter is not useful, which is removed here.
+Also Python dictionaries can hold arbitrary number of spaces in general to improve the readability.
+These spaces are also eliminated here, e.g., when the original mixture of dictionary and padding is</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="s1">&#39;descr&#39;</span><span class="p">:</span> <span class="s1">&#39;&lt;i4&#39;</span><span class="p">,</span><span class="s1">&#39;fortran_order&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span><span class="s1">&#39;shape&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="p">)}[</span> <span class="n">PADDING</span> <span class="p">]</span>
+</pre></div>
+</div>
+<p>This function converts it to</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="s1">&#39;descr&#39;</span><span class="p">:</span><span class="s1">&#39;&lt;i4&#39;</span><span class="p">,</span><span class="s1">&#39;fortran_order&#39;</span><span class="p">:</span><span class="kc">False</span><span class="p">,</span><span class="s1">&#39;shape&#39;</span><span class="p">:(</span><span class="mi">3</span><span class="p">,</span><span class="mi">5</span><span class="p">,)}</span>
+</pre></div>
+</div>
+<p>Notice that padding <code class="docutils literal notranslate"><span class="pre">[</span> <span class="pre">PADDING</span> <span class="pre">]</span></code> and unnecessary spaces are removed.
+Here new buffer <code class="docutils literal notranslate"><span class="pre">dict</span></code>, which only contains these <em>pure</em> information, is allocated and thus <code class="docutils literal notranslate"><span class="pre">dict_and_padding</span></code>, which is the raw mixture of dictionary and padding, is deallocated.</p>
+<details>
+<summary>
+More details: <code class="docutils literal notranslate"><span class="pre">extract_dict</span></code></summary><p>This function includes two features, 1. removing padding, 2. removing unnecessary spaces</p>
+<ol class="arabic">
+<li><p>Removing padding</p>
+<p>Because of the definition of Python dictionary, this can be achieved by looking for <code class="docutils literal notranslate"><span class="pre">'{'</span></code> and <code class="docutils literal notranslate"><span class="pre">'}'</span></code></p>
+</li>
+<li><p>Removing spaces</p>
+<p>First we mark all essential characters, which are part of dictionary.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Keys can contain spaces (e.g., <code class="docutils literal notranslate"><span class="pre">'my</span> <span class="pre">key'</span></code>), which should NOT be eliminated.
+Although for now official <cite>npy</cite> parser only allows exactly three keys which do not contain any space, (<code class="docutils literal notranslate"><span class="pre">'descr'</span></code>, <code class="docutils literal notranslate"><span class="pre">'fortran_order'</span></code>, and <code class="docutils literal notranslate"><span class="pre">'shape'</span></code>, see <a class="reference external" href="https://github.com/numpy/numpy/blob/fd45ab90e9ce6f6724a57f215592fd3066a7436c/numpy/lib/format.py#L605">the implementation</a>), this special care is considered in this library for future extensions.</p>
+</div>
+</li>
+</ol>
+</details></li>
+<li><p>Extract values from dictionary</p>
+<p>The final task is to extract three values (whose keys are <code class="docutils literal notranslate"><span class="pre">'descr'</span></code>, <code class="docutils literal notranslate"><span class="pre">'fortran_order'</span></code>, and <code class="docutils literal notranslate"><span class="pre">'shape'</span></code>) of the given dictionary, which is done here:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">827</span><span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">val</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">828</span><span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="n">find_dict_value</span><span class="p">(</span><span class="s">&quot;&#39;shape&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">val</span><span class="p">,</span><span class="w"> </span><span class="n">dict</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">829</span><span class="w">      </span><span class="n">error_handlings</span><span class="p">();</span><span class="w"></span>
+<span class="linenos">830</span><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">831</span><span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="linenos">832</span><span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="n">extract_shape</span><span class="p">(</span><span class="n">ndim</span><span class="p">,</span><span class="w"> </span><span class="n">shape</span><span class="p">,</span><span class="w"> </span><span class="n">val</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">833</span><span class="w">      </span><span class="n">error_handlings</span><span class="p">();</span><span class="w"></span>
+<span class="linenos">834</span><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">835</span><span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="linenos">836</span><span class="w">    </span><span class="n">smt_free</span><span class="p">(</span><span class="n">val</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">841</span><span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">val</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">842</span><span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="n">find_dict_value</span><span class="p">(</span><span class="s">&quot;&#39;descr&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">val</span><span class="p">,</span><span class="w"> </span><span class="n">dict</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">843</span><span class="w">      </span><span class="n">error_handlings</span><span class="p">();</span><span class="w"></span>
+<span class="linenos">844</span><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">845</span><span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="linenos">846</span><span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="n">extract_dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">,</span><span class="w"> </span><span class="n">val</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">847</span><span class="w">      </span><span class="n">error_handlings</span><span class="p">();</span><span class="w"></span>
+<span class="linenos">848</span><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">849</span><span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="linenos">850</span><span class="w">    </span><span class="n">smt_free</span><span class="p">(</span><span class="n">val</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">855</span><span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">val</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">856</span><span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="n">find_dict_value</span><span class="p">(</span><span class="s">&quot;&#39;fortran_order&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">val</span><span class="p">,</span><span class="w"> </span><span class="n">dict</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">857</span><span class="w">      </span><span class="n">error_handlings</span><span class="p">();</span><span class="w"></span>
+<span class="linenos">858</span><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">859</span><span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="linenos">860</span><span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="n">extract_is_fortran_order</span><span class="p">(</span><span class="n">is_fortran_order</span><span class="p">,</span><span class="w"> </span><span class="n">val</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">){</span><span class="w"></span>
+<span class="linenos">861</span><span class="w">      </span><span class="n">error_handlings</span><span class="p">();</span><span class="w"></span>
+<span class="linenos">862</span><span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">863</span><span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="linenos">864</span><span class="w">    </span><span class="n">smt_free</span><span class="p">(</span><span class="n">val</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Each function look for the key first, which is followed by the extraction of the counterpart value (<code class="docutils literal notranslate"><span class="pre">find_dict_value</span></code>).
+The results are stored to a buffer <code class="docutils literal notranslate"><span class="pre">val</span></code>.</p>
+<p>Next, the value is parsed to obtain the final information by <code class="docutils literal notranslate"><span class="pre">extract_shape</span></code>, <code class="docutils literal notranslate"><span class="pre">extract_dtype</span></code>, and <code class="docutils literal notranslate"><span class="pre">extract_is_fortran_order</span></code>, respectively, whose results (<code class="docutils literal notranslate"><span class="pre">ndim</span></code>, <code class="docutils literal notranslate"><span class="pre">shape</span></code>, <code class="docutils literal notranslate"><span class="pre">dtype</span></code>, and <code class="docutils literal notranslate"><span class="pre">is_fortran_order</span></code>) are returned to the user.</p>
+</li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function returns <code class="docutils literal notranslate"><span class="pre">header_size</span></code>, which is the size of header loaded from the given file stream <code class="docutils literal notranslate"><span class="pre">fp</span></code> when all succeeded.
+<code class="docutils literal notranslate"><span class="pre">0</span></code> is returned, on the other hand, when failed.
+It is recommended to check the returned value.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Heap memories of <code class="docutils literal notranslate"><span class="pre">shape</span></code> and <code class="docutils literal notranslate"><span class="pre">dtype</span></code> are allocated inside this library.
+Deallocating them correctly is the users’ responsibility to avoid memory leak.</p>
+</div>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &copy;2022, Naoki Hori.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 5.0.0</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/implementation_reader.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

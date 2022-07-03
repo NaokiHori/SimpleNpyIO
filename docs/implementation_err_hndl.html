@@ -1,0 +1,139 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+    <title>Implementation - error handlings &#8212; SimpleNpyIO 0.3 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+    <script src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Implementation - reader" href="implementation_reader.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">SimpleNpyIO</a></h1>
+
+
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=NaokiHori&repo=SimpleNpyIO&type=true&count=true&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="test.html">Test</a></li>
+<li class="toctree-l1"><a class="reference internal" href="implementation_writer.html">Implementation - writer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="implementation_reader.html">Implementation - reader</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Implementation - error handlings</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="implementation_reader.html" title="previous chapter">Implementation - reader</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="implementation-error-handlings">
+<h1>Implementation - error handlings<a class="headerlink" href="#implementation-error-handlings" title="Permalink to this heading">¶</a></h1>
+<p>When error is detected, writer and reader should free all allocated memories up to then before returning a corresponding error code to the user, which is treated by this function.</p>
+<p>In order to remember all memories allocated, a linked list whose definition is</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="linenos">52</span><span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">smt_t_</span><span class="w"> </span><span class="n">smt_t</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">53</span><span class="k">struct</span><span class="w"> </span><span class="nc">smt_t_</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="linenos">54</span><span class="w">  </span><span class="c1">// pointer to the allocated buffer (by my_calloc)</span>
+<span class="linenos">55</span><span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">ptr</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">56</span><span class="w">  </span><span class="c1">// pointer to the next node</span>
+<span class="linenos">57</span><span class="w">  </span><span class="n">smt_t</span><span class="w"> </span><span class="o">*</span><span class="n">node_next</span><span class="p">;</span><span class="w"></span>
+<span class="linenos">58</span><span class="p">};</span><span class="w"></span>
+<span class="linenos">59</span><span class="n">smt_t</span><span class="w"> </span><span class="o">*</span><span class="n">all_memories</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span><span class="w"></span>
+</pre></div>
+</div>
+<p>is used.
+All buffers are registered to this linked list once a memory allocator <code class="docutils literal notranslate"><span class="pre">smt_calloc</span></code> is called, while the information is removed when a deallocator <code class="docutils literal notranslate"><span class="pre">smt_free</span></code> is called.</p>
+<p>At the end of reader, the data type and shape of the data set are returned to the user, whose memories are allocated by this library since the lengths of these buffers are not known a priori.
+Thus, at the end of the reader, these two memories are not freed but returned to the user (after being detached from the memory pool by calling <code class="docutils literal notranslate"><span class="pre">smt_detach</span></code>), whose deallocations should be done properly by the user.</p>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference external" href="https://github.com/NaokiHori/SimpleMemTracker">SimpleMemoryTracker</a></p>
+</div>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &copy;2022, Naoki Hori.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 5.0.0</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/implementation_err_hndl.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
