@@ -221,7 +221,7 @@ static int convert_endian(void *val, const size_t size){
   return 0;
 }
 
-static int find_pattern(size_t *location, const void *p0, const size_t size_p0, const void *p1, const size_t size_p1){
+static int find_pattern(size_t *location, const char *p0, const size_t size_p0, const char *p1, const size_t size_p1){
   /*
    * try to find a pattern "p1" in "p0"
    *   and return its location IN BYTES
