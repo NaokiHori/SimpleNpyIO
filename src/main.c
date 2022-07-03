@@ -101,8 +101,8 @@ static int example_reader(const char fname[]){
   }
   fread(data, sizeof(mytype), shape[0]*shape[1], fp);
   fclose(fp);
-  int ny = shape[0];
-  int nx = shape[1];
+  int ny = (int)(shape[0]);
+  int nx = (int)(shape[1]);
   // output from C to compare with python output
   printf("data (loaded):\n");
   for(int j = 0; j < ny; j++){

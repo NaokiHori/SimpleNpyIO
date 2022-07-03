@@ -56,7 +56,7 @@ struct smt_t_ {
   // pointer to the next node
   smt_t *node_next;
 };
-smt_t *all_memories = NULL;
+static smt_t *all_memories = NULL;
 
 /* take care of actual allocation / deallocation */
 static void *my_calloc(const size_t count, const size_t size){
@@ -126,7 +126,7 @@ static int kernel_smt_attach(smt_t **node_root, void *ptr){
   return RETVAL_SUCCESS;
 }
 
-void *smt_calloc(const size_t count, const size_t size){
+static void *smt_calloc(const size_t count, const size_t size){
   // allocate pointer
   void *ptr = my_calloc(count, size);
   if(kernel_smt_attach(&all_memories, ptr) != RETVAL_SUCCESS){
@@ -135,11 +135,6 @@ void *smt_calloc(const size_t count, const size_t size){
     ERROR("Define NITEMS_MAX explicitly to change this behaviour\n");
     exit(EXIT_FAILURE);
   }
-  return ptr;
-}
-
-void *smt_attach(void *ptr){
-  kernel_smt_attach(&all_memories, ptr);
   return ptr;
 }
 
@@ -162,14 +157,14 @@ static int kernel_smt_detach(smt_t **node_root, const void *ptr){
   return RETVAL_SUCCESS;
 }
 
-void smt_detach(const void *ptr){
+static void smt_detach(const void *ptr){
   if(kernel_smt_detach(&all_memories, ptr) != RETVAL_SUCCESS){
     ERROR("Cannot find %p in the allocated list\n", ptr);
     exit(EXIT_FAILURE);
   }
 }
 
-void smt_free(void *ptr){
+static void smt_free(void *ptr){
   if(kernel_smt_detach(&all_memories, ptr) != RETVAL_SUCCESS){
     ERROR("Cannot find %p in the allocated list\n", ptr);
     exit(EXIT_FAILURE);
@@ -177,7 +172,7 @@ void smt_free(void *ptr){
   my_free(ptr);
 }
 
-void smt_free_all(void){
+static void smt_free_all(void){
   while(all_memories != NULL){
     void *ptr = all_memories->ptr;
     smt_free(ptr);
@@ -193,7 +188,7 @@ void smt_free_all(void){
 // https://gist.github.com/NaokiHori/91c560a59f4e4ef37eb33b8e1c055fbc
 static bool is_big_endian(void){
   const uint16_t val = 1 << 8;
-  return (bool)(((uint8_t *)(&val))[0]);
+  return (bool)(((const uint8_t *)(&val))[0]);
 }
 
 // https://gist.github.com/NaokiHori/81ad6e1562e1ec23253246902c281cc2
@@ -260,7 +255,7 @@ static int find_pattern(size_t *location, const char *p0, const size_t size_p0, 
   return -1;
 }
 
-void error_handlings(void){
+static void error_handlings(void){
   smt_free_all();
 }
 
@@ -372,13 +367,17 @@ static int load_header_len(size_t *header_len, size_t *buf_size, size_t major_ve
   if(is_big_endian()){
     convert_endian(buf, *buf_size);
   }
-  /* ! interpret buffer (sequence of uint8_t) as a value having corresponding datatype ! 7 ! */
+  /* ! interpret buffer (sequence of uint8_t) as a value having corresponding datatype ! 11 ! */
   if(major_version == 1){
     // interpret as a 2-byte value
-    *header_len = *((uint16_t *)buf);
+    uint16_t tmp;
+    memcpy(&tmp, buf, sizeof(uint8_t)*nitems);
+    *header_len = (size_t)tmp;
   }else{
     // interpret as a 4-byte value
-    *header_len = *((uint32_t *)buf);
+    uint32_t tmp;
+    memcpy(&tmp, buf, sizeof(uint8_t)*nitems);
+    *header_len = (size_t)tmp;
   }
   smt_free(buf);
   LOGGING("header_len: %zu\n", *header_len);
@@ -427,7 +426,7 @@ static int extract_dict(char **dict, uint8_t *dict_and_padding, size_t header_le
   size_t s;
   {
     // use char since it's "{"
-    char p0 = dict_and_padding[0];
+    char p0 = (char)(dict_and_padding[0]);
     char p1 = '{';
     if(memcmp(&p0, &p1, sizeof(char)) != 0){
       ERROR("dict_and_padding (%s) does not start with '{'\n", dict_and_padding);
@@ -441,7 +440,7 @@ static int extract_dict(char **dict, uint8_t *dict_and_padding, size_t header_le
   //   walking through all dicts which have much richer info
   size_t e = 0;
   {
-    for(int i = header_len-1; i > 0; i--){
+    for(size_t i = header_len-1; i > 0; i--){
       // use uint8_t since padding is essentially binary
       //  rather than ascii
       uint8_t p0 = dict_and_padding[i];
@@ -500,7 +499,7 @@ static int extract_dict(char **dict, uint8_t *dict_and_padding, size_t header_le
   *dict = smt_calloc(n_chars_dict+1, sizeof(char)); // + NUL
   for(size_t i = s, j = 0; i <= e; i++){
     if(is_dict[i-s]){
-      (*dict)[j] = dict_and_padding[i];
+      (*dict)[j] = (char)(dict_and_padding[i]);
       j++;
     }
   }
@@ -534,9 +533,9 @@ static int find_dict_value(const char key[], char **val, const char *dict){
     size_t location;
     int retval = find_pattern(
         &location,
-        (void *)dict,
+        dict,
         sizeof(char)*n_chars_dict,
-        (void *)key,
+        key,
         sizeof(char)*n_chars_key
     );
     if(retval < 0){
@@ -680,8 +679,13 @@ static int extract_shape(size_t *ndim, size_t **shape, const char *val){
         break;
       }else{
         // assign to the resulting buffer "shape"
-        (*shape)[j] = strtoll(buf, NULL, 10);
-        j++;
+        long long tmp = strtoll(buf, NULL, 10);
+        if(tmp <= 0){
+          ERROR("non-positive shape: %lld\n", tmp);
+        }else{
+          (*shape)[j] = (size_t)tmp;
+          j++;
+        }
       }
     }
     smt_free(str);
@@ -724,9 +728,9 @@ static int extract_is_fortran_order(bool *is_fortran_order, const char *val){
     size_t n_chars_pattern = strlen(pattern);
     int retval = find_pattern(
         &location,
-        (void *)val,
+        val,
         sizeof(char)*n_chars_val,
-        (void *)pattern,
+        pattern,
         sizeof(char)*n_chars_pattern
     );
     if(retval < 0){
@@ -743,9 +747,9 @@ static int extract_is_fortran_order(bool *is_fortran_order, const char *val){
     size_t n_chars_pattern = strlen(pattern);
     int retval = find_pattern(
         &location,
-        (void *)val,
+        val,
         sizeof(char)*n_chars_val,
-        (void *)pattern,
+        pattern,
         sizeof(char)*n_chars_pattern
     );
     if(retval < 0){
@@ -1023,9 +1027,9 @@ static int create_dict(char **dict, size_t *n_dict, const size_t ndim, const siz
    * Also the number of elements of the dict is returned (to be consistent with "create_padding")
    */
   // keys, which are completely fixed
-  const char descr_key[]         = {"'descr'"};
-  const char fortran_order_key[] = {"'fortran_order'"};
-  const char shape_key[]         = {"'shape'"};
+  char descr_key[]         = {"'descr'"};
+  char fortran_order_key[] = {"'fortran_order'"};
+  char shape_key[]         = {"'shape'"};
   // values, which depend on inputs
   char *descr_value         = NULL;
   char *fortran_order_value = NULL;
