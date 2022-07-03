@@ -6,7 +6,7 @@ Usage
 Installation
 ============
 
-Installation procedure (e.g., ``./configure; make; make install``) does not exist; you can copy a header file `simple_npyio.h <https://github.com/NaokiHori/SimpleNpyIO/blob/master/include/simple_npyio.h>`_ and a source file `simple_npyio.c <https://github.com/NaokiHori/SimpleNpyIO/blob/master/src/simple_npyio.c>`_ to your project.
+Installation procedure (e.g., ``./configure; make; make install``) does not exist; you can copy a header file `simple_npyio.h <https://github.com/NaokiHori/SimpleNpyIO/blob/main/include/simple_npyio.h>`_ and a source file `simple_npyio.c <https://github.com/NaokiHori/SimpleNpyIO/blob/main/src/simple_npyio.c>`_ to your project.
 
 After including the header file
 
@@ -89,7 +89,7 @@ Roughly speaking, this library creates a `npy` file ``test.npy`` as
    // 4. close file
    fclose(fp);
 
-A similar and complete script can be found in `src/main.c <https://github.com/NaokiHori/SimpleNpyIO/blob/master/src/main.c>`_, which was used in the :ref:`quick start <quick_start>`.
+A similar and complete script can be found in `src/main.c <https://github.com/NaokiHori/SimpleNpyIO/blob/main/src/main.c>`_, which was used in the :ref:`quick start <quick_start>`.
 
 .. details:: A bit more description can be found here.
 
@@ -197,5 +197,5 @@ Similarly, this library loads a `npy` file ``test.npy`` as
    // 5. close file
    fclose(fp);
 
-A similar and complete script can be found in `src/main.c <https://github.com/NaokiHori/SimpleNpyIO/blob/master/src/main.c>`_, which was used in the :ref:`quick start <quick_start>`.
+A similar and complete script can be found in `src/main.c <https://github.com/NaokiHori/SimpleNpyIO/blob/main/src/main.c>`_, which was used in the :ref:`quick start <quick_start>`.
 

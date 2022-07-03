@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - main
     paths:
       - include/**
       - src/**
@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v1
         with:
           repository: 'NaokiHori/SimpleNpyIO'
-          ref: 'master'
+          ref: 'main'
       - name: Prepare place to store artifacts
         run: mkdir artifacts
       - name: Build and Run Tests
@@ -81,7 +81,7 @@ jobs:
         uses: actions/checkout@v1
         with:
           repository: 'NaokiHori/SimpleNpyIO'
-          ref: 'master'
+          ref: 'main'
       - name: Prepare place to store artifacts
         run: mkdir artifacts
       - name: Build Python
@@ -156,7 +156,7 @@ jobs:
         uses: actions/checkout@v1
         with:
           repository: 'NaokiHori/SimpleNpyIO'
-          ref: 'master'
+          ref: 'main'
       - name: Prepare place to store artifacts
         run: mkdir artifacts
       - name: Run tests and create badge
@@ -196,7 +196,7 @@ jobs:
         uses: actions/checkout@v1
         with:
           repository: 'NaokiHori/SimpleNpyIO'
-          ref: 'master'
+          ref: 'main'
       # import artifacts generated in the previous steps
       - name: Download artifacts (unittest)
         uses: actions/download-artifact@v3

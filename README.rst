@@ -7,13 +7,13 @@ SimpleNpyIO
 .. |License| image:: https://img.shields.io/github/license/NaokiHori/SimpleNpyIO
 .. _License: https://opensource.org/licenses/MIT
 
-.. |LastCommit| image:: https://img.shields.io/github/last-commit/NaokiHori/SimpleNpyIO/master
-.. _LastCommit: https://github.com/NaokiHori/SimpleNpyIO/commits/master
+.. |LastCommit| image:: https://img.shields.io/github/last-commit/NaokiHori/SimpleNpyIO/main
+.. _LastCommit: https://github.com/NaokiHori/SimpleNpyIO/commits/main
 
-.. |DocDeployment| image:: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/documentation.yml/badge.svg?branch=master
+.. |DocDeployment| image:: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/documentation.yml/badge.svg?branch=main
 .. _DocDeployment: https://naokihori.github.io/SimpleNpyIO/
 
-.. |WorkflowStatus| image:: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/ci.yml/badge.svg?branch=master
+.. |WorkflowStatus| image:: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/ci.yml/badge.svg?branch=main
 .. _WorkflowStatus: https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/ci.yml
 
 |CBadge| |DockerBadge| |GitHubActionsBadge| |GitHubPagesBadge|
@@ -77,7 +77,7 @@ The following code is much more complicated compared to the serial version, whic
 
 Writing a two dimensional array which is contiguous in `x (i)` direction while decomposed in `y (j)` direction to a `npy` file consists of two steps,
 
-1. Writing header by master process
+1. Writing header by main process
 
    .. code-block:: c
 
@@ -174,7 +174,7 @@ The output file can be easily inspected by using python, in particular by
    # whatever you want, e.g.,
    print(data.shape) # (3, 5)
 
-Please check the `source file <https://github.com/NaokiHori/SimpleNpyIO/blob/master/src/main.c>`_ for details.
+Please check the `source file <https://github.com/NaokiHori/SimpleNpyIO/blob/main/src/main.c>`_ for details.
 
 *************************
 Usage in external library
@@ -206,14 +206,14 @@ Unit test
 =========
 
 Unit tests are performed automatically using a test framework `CUnit <http://cunit.sourceforge.net>`_.
-The details can be found under `test/unit <https://github.com/NaokiHori/SimpleNpyIO/tree/master/test/unit>`_.
+The details can be found under `test/unit <https://github.com/NaokiHori/SimpleNpyIO/tree/main/test/unit>`_.
 
 ================
 Integration test
 ================
 
 Integration tests are performed automatically by comparing `npy` files generated (natively) by Python and this library.
-The details can be found under `test/integration <https://github.com/NaokiHori/SimpleNpyIO/tree/master/test/integration>`_.
+The details can be found under `test/integration <https://github.com/NaokiHori/SimpleNpyIO/tree/main/test/integration>`_.
 
 =================
 Memory leak check

@@ -83,5 +83,5 @@ The output file can be easily inspected by using python, in particular with this
    # whatever you want, e.g.,
    print(data.shape) # (3, 5)
 
-Please refer to `a sample script <https://github.com/NaokiHori/SimpleNpyIO/blob/master/src/main.c>`_ which generated the above results.
+Please refer to `a sample script <https://github.com/NaokiHori/SimpleNpyIO/blob/main/src/main.c>`_ which generated the above results.
 

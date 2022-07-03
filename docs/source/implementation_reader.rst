@@ -114,7 +114,7 @@ Detailed descriptions can be found hereafter.
 
 .. note::
 
-   All snippets come from `src/simple_npyio.c <https://github.com/NaokiHori/SimpleNpyIO/blob/master/src/simple_npyio.c>`_.
+   All snippets come from `src/simple_npyio.c <https://github.com/NaokiHori/SimpleNpyIO/blob/main/src/simple_npyio.c>`_.
 
 #. Check magic string
 
