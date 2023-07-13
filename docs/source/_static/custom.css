@@ -1,0 +1,15 @@
+div.body {
+  max-width: 95vw;
+}
+
+div.MathJax_Display {
+  text-align: left !important;
+  overflow-x: scroll;
+  overflow-y: clip;
+  background-color: #f0f0f0;
+  width: 95%;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 5px;
+  margin-bottom: 5px;
+}

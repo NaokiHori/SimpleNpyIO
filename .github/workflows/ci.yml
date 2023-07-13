@@ -1,0 +1,182 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - include/**
+      - src/**
+      - test/**
+      - docs/source
+      - .github/workflows/ci.yml
+  workflow_dispatch:
+
+jobs:
+
+  test:
+    name: Create NPY files in C and load from Python, vice versa
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@main
+        with:
+          repository: "NaokiHori/SimpleNpyIO"
+          ref: "main"
+      - name: Install Libraries
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy
+      - name: Build and Run Tests
+        run: |
+          set -x
+          set -e
+          cd test
+          mkdir artifacts
+          make clean
+          make all
+          python3 runner.py
+          mv test-result.rst snpyio.log artifacts/
+          link=$(cat link.txt)
+          wget --output-document=artifacts/badge_test.svg "$link"
+      - name: Upload test results
+        uses: actions/upload-artifact@main
+        with:
+          name: test
+          path: test/artifacts
+
+  memory:
+    name: Check memory leak
+    runs-on: ubuntu-latest
+    container:
+      image: naokihori/alpine-valgrind:1.0
+      volumes:
+        - :/home
+      options: --rm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@main
+        with:
+          repository: "NaokiHori/SimpleNpyIO"
+          ref: "main"
+      - name: Run tests and create badge
+        run: |
+          set -x
+          set -e
+          mkdir artifacts
+          make clean
+          make all
+          # badge label
+          label="MemoryLeakCheck"
+          # badge color and message
+          if valgrind \
+            --leak-check=full \
+            --error-exitcode=1 \
+            --xml=yes \
+            --xml-file=artifacts/valgrind.xml \
+            ./a.out; then
+            color="green"
+            message="passed"
+          else
+            color="red"
+            message="failed"
+          fi
+          # request badge
+          link=https://img.shields.io/badge/$label-$message-$color.svg
+          wget --output-document=artifacts/badge_memoryleakcheck.svg "$link"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@main
+        with:
+          name: memory
+          path: artifacts
+
+  build-doc:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    needs: [test, memory]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@main
+      - name: Download artifacts
+        uses: actions/download-artifact@main
+        with:
+          name: test
+          path: docs/source/artifacts
+      - name: Download artifacts
+        uses: actions/download-artifact@main
+        with:
+          name: memory
+          path: docs/source/artifacts
+      - name: Check dead links
+        run: |
+          docker run \
+            --rm \
+            --volume ${PWD}:/project \
+            --workdir /project \
+            sphinxdoc/sphinx:latest \
+            sphinx-build -M linkcheck "docs/source" "docs/build"
+          log=docs/build/linkcheck/output.txt
+          if [ -e ${log} ]; then
+            wc -l ${log}
+            cat ${log}
+          fi
+      - name: Build documentation using Sphinx
+        run: |
+          docker run \
+            --rm \
+            --volume ${PWD}:/project \
+            --workdir /project \
+            sphinxdoc/sphinx:latest \
+            sphinx-build -M html "docs/source" "docs/build"
+      - name: Upload HTML artifacts
+        uses: actions/upload-artifact@main
+        with:
+          name: DocHTML
+          path: docs/build/html
+
+  deploy-doc:
+    name: Deploy documentation
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: "pages"
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: [build-doc]
+    steps:
+      - name: Download HTML artifacts
+        uses: actions/download-artifact@main
+        with:
+          name: DocHTML
+          path: docs/build/html
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@main
+      - name: Upload HTML
+        uses: actions/upload-pages-artifact@main
+        with:
+          path: docs/build/html
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@main
+
+  check-install:
+    name: Check install script works
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@main
+        with:
+          repository: "NaokiHori/SimpleNpyIO"
+          ref: "main"
+      - name: Install
+        run: |
+          bash install.sh install
+      - name: Uninstall
+        run: |
+          bash install.sh uninstall
+
