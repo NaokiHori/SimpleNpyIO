@@ -6,24 +6,24 @@
 // type of array
 typedef int mytype;
 
-static void print_array(
+static void print_array (
     const char title[],
     const size_t nx,
     const size_t ny,
-    const int * data
-){
+    const int * const data
+) {
   printf("%s\n", title);
-  for(size_t j = 0; j < ny; j++){
-    for(size_t i = 0; i < nx; i++){
+  for (size_t j = 0; j < ny; j++) {
+    for (size_t i = 0; i < nx; i++) {
       char eol = nx - 1 == i ? '\n' : ' ';
       printf("%3d%c", data[j * nx + i], eol);
     }
   }
 }
 
-static int example_writer(
+static int example_writer (
     const char fname[]
-){
+) {
   // create dataset to be dumped
   //  0  1  2  3  4
   //  5  6  7  8  9
@@ -33,12 +33,12 @@ static int example_writer(
   const size_t ny = 3;
   mytype * data = NULL;
   data = calloc(nx * ny, sizeof(mytype));
-  if(NULL == data){
+  if (NULL == data) {
     printf("memory allocation error (data)\n");
     exit(EXIT_FAILURE);
   }
-  for(size_t j = 0; j < ny; j++){
-    for(size_t i = 0; i < nx; i++){
+  for (size_t j = 0; j < ny; j++) {
+    for (size_t i = 0; i < nx; i++) {
       data[j * nx + i] = (int)(j * nx + i);
     }
   }
@@ -53,23 +53,25 @@ static int example_writer(
   const bool is_fortran_order = false;
   // open file, create/write header, write data, and close it
   FILE * fp = fopen(fname, "w");
-  if(NULL == fp){
+  if (NULL == fp) {
     printf("file open error: %s\n", fname);
     exit(EXIT_FAILURE);
   }
-  const size_t header_size = snpyio_w_header(
+  size_t header_size = 0;
+  const int retval = snpyio_w_header(
       ndim,
       shape,
       dtype,
       is_fortran_order,
-      fp
+      fp,
+      &header_size
   );
-  if(0 == header_size){
+  if (0 != retval) {
     printf("snpyio_w_header failed\n");
     exit(EXIT_FAILURE);
   }
   printf("header is successfully dumped (size: %zu)\n", header_size);
-  if(nx * ny != fwrite(data, sizeof(mytype), nx * ny, fp)){
+  if (nx * ny != fwrite(data, sizeof(mytype), nx * ny, fp)) {
     printf("fwrite failed\n");
     exit(EXIT_FAILURE);
   }
@@ -78,9 +80,9 @@ static int example_writer(
   return 0;
 }
 
-static int example_reader(
+static int example_reader (
     const char fname[]
-){
+) {
   // variables which are loaded from npy file
   // array dimension
   size_t ndim = 0;
@@ -94,29 +96,31 @@ static int example_reader(
   mytype * data = NULL;
   // open file, read header, read data, and close it
   FILE * fp = fopen(fname, "r");
-  if(NULL == fp){
+  if (NULL == fp) {
     printf("file open error: %s\n", fname);
     exit(EXIT_FAILURE);
   }
-  const size_t header_size = snpyio_r_header(
+  size_t header_size = 0;
+  const int retval = snpyio_r_header(
       &ndim,
       &shape,
       &dtype,
       &is_fortran_order,
-      fp
+      fp,
+      &header_size
   );
-  if(0 == header_size){
+  if (0 != retval) {
     printf("snpyio_r_header failed\n");
     exit(EXIT_FAILURE);
-  }else{
+  } else {
     printf("header is successfully loaded (size: %zu)\n", header_size);
   }
   data = calloc(shape[0] * shape[1], sizeof(mytype));
-  if(NULL == data){
+  if (NULL == data) {
     printf("memory allocation error (data)\n");
     exit(EXIT_FAILURE);
   }
-  if(shape[0] * shape[1] != fread(data, sizeof(mytype), shape[0] * shape[1], fp)){
+  if (shape[0] * shape[1] != fread(data, sizeof(mytype), shape[0] * shape[1], fp)) {
     printf("fread failed\n");
     exit(EXIT_FAILURE);
   }
@@ -129,9 +133,9 @@ static int example_reader(
   return 0;
 }
 
-int main(
+int main (
     void
-){
+) {
   const char fname[] = {"example.npy"};
   example_writer(fname);
   example_reader(fname);

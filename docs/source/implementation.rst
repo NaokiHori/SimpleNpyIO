@@ -21,9 +21,8 @@ Writer
 
 .. note::
 
-   This function returns a value representing the size of the header successfully written to the file stream ``fp``.
-   If the function fails, it returns ``0``.
-   It is strongly recommended to always check the return value of the function.
+    The last argument ``header_size`` denotes the size of the header written to the file stream `fp`.
+    This can be used to know the offset from the top of the file pointer after which the main dataset is stored.
 
 The procedure for writing a ``NPY`` header is managed by the main function ``snpyio_w_header``, which includes the following steps:
 
@@ -79,9 +78,9 @@ The procedure for writing a ``NPY`` header is managed by the main function ``snp
       major_version:e -> error           [label="failure"];
       header_len:s    -> output:n        [label="success"];
       header_len:e    -> error           [label="failure"];
-      output:s        -> end             [label="return header_size"];
+      output:s        -> end             [label="return 0"];
       output:e        -> error           [label="failure"];
-      error:s         -> end             [label="return 0"];
+      error:s         -> end             [label="return non-zero value"];
 
    }
 
@@ -104,9 +103,8 @@ Reader
 
 .. note::
 
-   This function returns a value representing the size of the header successfully loaded from the file stream ``fp``.
-   If the function fails, it returns ``0``.
-   It is strongly recommended to always check the return value of the function.
+    The last argument ``header_size`` denotes the size of the header loaded from the file stream `fp`.
+    This can be used to know the offset from the top of the file pointer after which the main dataset is stored.
 
 The procedure for reading a ``NPY`` header is managed by the main function ``snpyio_r_header``, which includes the following steps:
 
@@ -164,9 +162,9 @@ The procedure for reading a ``NPY`` header is managed by the main function ``snp
       load_dict_padding:e  -> error                [label="failure"]
       extract_dictionary:s -> extract_values:n     [label="success"];
       extract_dictionary:e -> error                [label="failure"]
-      extract_values:s     -> end                  [label="return header_size"];
+      extract_values:s     -> end                  [label="return 0"];
       extract_values:e     -> error                [label="failure"]
-      error:s              -> end                  [label="return 0"];
+      error:s              -> end                  [label="return non-zero value"];
 
    }
 

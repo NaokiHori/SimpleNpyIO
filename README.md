@@ -23,21 +23,21 @@ This library handles the initial step. The format's simplicity allows easy manag
 
 1. Prepare the workspace:
 
-   ```console
+   ```bash
    mkdir -p /path/to/your/working/directory
    cd /path/to/your/working/directory
    ```
 
 1. Clone this repository, for example:
 
-   ```console
+   ```bash
    git clone https://github.com/NaokiHori/SimpleNpyIO
    cd SimpleNpyIO
    ```
 
 1. Build and run:
 
-   ```console
+   ```bash
    make
    ./a.out
    ```
@@ -98,7 +98,7 @@ For API details and examples, refer to [`src/main.c`](https://github.com/NaokiHo
 
 A `submodule` branch is available, designed to be imported into an existing project, for example:
 
-```console
+```bash
 git submodule add --branch submodule https://github.com/NaokiHori/SimpleNpyIO
 ```
 
