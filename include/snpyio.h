@@ -37,13 +37,13 @@
  * @param[out] header_size      : loaded header size (in bytes)
  * @return                      : success: 0, failure: otherwise
  */
-extern int snpyio_r_header(
-    size_t * ndim,
-    size_t ** shape,
-    char ** dtype,
-    bool * is_fortran_order,
-    FILE * fp,
-    size_t * header_size
+extern int snpyio_read_header(
+    size_t * const ndim,
+    size_t ** const shape,
+    char ** const dtype,
+    bool * const is_fortran_order,
+    FILE * const fp,
+    size_t * const header_size
 );
 
 /**
@@ -56,13 +56,37 @@ extern int snpyio_r_header(
  * @param[out] header_size      : written header size (in bytes)
  * @return                      : success: 0, failure: otherwise
  */
-extern int snpyio_w_header(
+extern int snpyio_write_header(
     const size_t ndim,
-    const size_t * shape,
+    const size_t * const shape,
     const char dtype[],
     const bool is_fortran_order,
-    FILE * fp,
-    size_t * header_size
+    FILE * const fp,
+    size_t * const header_size
+);
+
+/**
+ * @deprecated use snpyio_read_header instead
+ */
+extern int snpyio_r_header(
+    size_t * const ndim,
+    size_t ** const shape,
+    char ** const dtype,
+    bool * const is_fortran_order,
+    FILE * const fp,
+    size_t * const header_size
+);
+
+/**
+ * @deprecated use snpyio_write_header instead
+ */
+extern int snpyio_w_header(
+    const size_t ndim,
+    const size_t * const shape,
+    const char dtype[],
+    const bool is_fortran_order,
+    FILE * const fp,
+    size_t * const header_size
 );
 
 #endif // SNPYIO_H

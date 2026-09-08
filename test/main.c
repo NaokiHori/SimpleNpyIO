@@ -20,9 +20,9 @@ static int reader (
   // shape and dtype are now given by the library,
   //   we are responsible for their memory managements
   size_t header_size = 0;
-  const int retval = snpyio_r_header(ndim, shape, dtype, is_fortran_order, fp, &header_size);
+  const int retval = snpyio_read_header(ndim, shape, dtype, is_fortran_order, fp, &header_size);
   if (0 != retval) {
-    printf("snpyio_r_header failed\n");
+    printf("snpyio_read_header failed\n");
     exit(EXIT_FAILURE);
   }
   size_t nitems = 1;
@@ -57,9 +57,9 @@ static int writer (
     exit(EXIT_FAILURE);
   }
   size_t header_size = 0;
-  const int retval = snpyio_w_header(ndim, shape, dtype, is_fortran_order, fp, &header_size);
+  const int retval = snpyio_write_header(ndim, shape, dtype, is_fortran_order, fp, &header_size);
   if (0 != retval) {
-    printf("snpyio_w_header failed\n");
+    printf("snpyio_write_header failed\n");
     exit(EXIT_FAILURE);
   }
   size_t nitems = 1;

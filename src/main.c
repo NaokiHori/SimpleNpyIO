@@ -58,7 +58,7 @@ static int example_writer (
     exit(EXIT_FAILURE);
   }
   size_t header_size = 0;
-  const int retval = snpyio_w_header(
+  const int retval = snpyio_write_header(
       ndim,
       shape,
       dtype,
@@ -67,7 +67,7 @@ static int example_writer (
       &header_size
   );
   if (0 != retval) {
-    printf("snpyio_w_header failed\n");
+    printf("snpyio_write_header failed\n");
     exit(EXIT_FAILURE);
   }
   printf("header is successfully dumped (size: %zu)\n", header_size);
@@ -101,7 +101,7 @@ static int example_reader (
     exit(EXIT_FAILURE);
   }
   size_t header_size = 0;
-  const int retval = snpyio_r_header(
+  const int retval = snpyio_read_header(
       &ndim,
       &shape,
       &dtype,
@@ -110,7 +110,7 @@ static int example_reader (
       &header_size
   );
   if (0 != retval) {
-    printf("snpyio_r_header failed\n");
+    printf("snpyio_read_header failed\n");
     exit(EXIT_FAILURE);
   } else {
     printf("header is successfully loaded (size: %zu)\n", header_size);

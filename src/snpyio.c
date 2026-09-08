@@ -664,14 +664,13 @@ static int extract_is_fortran_order(
   return 0;
 }
 
-// one of the main functions, see header
-int snpyio_r_header(
-    size_t * ndim,
-    size_t ** shape,
-    char ** dtype,
-    bool * is_fortran_order,
-    FILE * fp,
-    size_t * header_size
+int snpyio_read_header(
+    size_t * const ndim,
+    size_t ** const shape,
+    char ** const dtype,
+    bool * const is_fortran_order,
+    FILE * const fp,
+    size_t * const header_size
 ){
   if(0 != sanitise_fp(fp)){
     goto err_hndl;
@@ -1053,14 +1052,13 @@ static int create_header_len(
   return 0;
 }
 
-// one of the main functions, see header
-int snpyio_w_header(
+int snpyio_write_header(
     const size_t ndim,
-    const size_t * shape,
+    const size_t * const shape,
     const char dtype[],
     const bool is_fortran_order,
-    FILE * fp,
-    size_t * header_size
+    FILE * const fp,
+    size_t * const header_size
 ){
   // check parameters given by user
   if(0 != sanitise_shape(ndim, shape)){
@@ -1138,5 +1136,27 @@ int snpyio_w_header(
 err_hndl:
   error_handlings();
   return 1;
+}
+
+int snpyio_r_header(
+    size_t * const ndim,
+    size_t ** const shape,
+    char ** const dtype,
+    bool * const is_fortran_order,
+    FILE * const fp,
+    size_t * const header_size
+) {
+  return snpyio_read_header(ndim, shape, dtype, is_fortran_order, fp, header_size);
+}
+
+int snpyio_w_header(
+    const size_t ndim,
+    const size_t * const shape,
+    const char dtype[],
+    const bool is_fortran_order,
+    FILE * const fp,
+    size_t * const header_size
+) {
+  return snpyio_write_header(ndim, shape, dtype, is_fortran_order, fp, header_size);
 }
 

@@ -1,5 +1,5 @@
 CC     := cc
-CFLAG  := -std=c99 -Wall -Wextra -Werror
+CFLAG  := -std=c99 -Wall -Wextra -Wpedantic -Werror
 INC    := -Iinclude
 SRCDIR := src
 OBJDIR := obj

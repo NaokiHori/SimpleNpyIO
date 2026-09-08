@@ -1,6 +1,6 @@
 ROOT   := ..
 CC     := cc
-CFLAG  := -std=c99 -Wall -Wextra -Werror -DSNPYIO_ENABLE_LOGGING
+CFLAG  := -std=c99 -Wall -Wextra -Wpedantic -Werror -DSNPYIO_ENABLE_LOGGING
 INC    := -I$(ROOT)/include
 SRC    := $(ROOT)/src/snpyio.c main.c
 TARGET := a.out
