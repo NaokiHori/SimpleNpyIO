@@ -7,13 +7,18 @@
 
 ## Overview
 
-A `C99`-compatible, single-header (`snpyio.h`) single-source (`snpyio.c`) library for file reading and writing in the [`NPY` format](https://numpy.org/doc/stable/reference/generated/numpy.lib.format.html).
+A `C99`-compatible, single-header (`snpyio.h`) single-source (`snpyio.c`) library for file reading and writing in the **simplest** [`NPY` format](https://numpy.org/doc/stable/reference/generated/numpy.lib.format.html).
 
-The `NPY` file format is a binary format used to store multi-dimensional arrays.
+The `NPY` file format is a binary format which can be used to store multi-dimensional arrays.
 It consists of a binary dataset preceded by a header containing metadata necessary to identify the dataset: shape, datatype, and memory order (row-major or column-major).
 
 Performing I/O operations on `NPY` files is straightforward: load or dump the metadata, then read or write the dataset.
 This library handles the initial step. The format's simplicity allows easy management of parallel I/O operations, supported by `MPI`.
+
+## Caveat
+
+This library focuses on dealing with multi-dimensional arrays (n-th order tensors, including scalars) which frequently appear in scientific computations.
+Although `NPY` format is flexible enough to describe unstructured data, they are not supported for brevity.
 
 ## Dependency
 
@@ -21,60 +26,62 @@ This library handles the initial step. The format's simplicity allows easy manag
 
 ## Quick Start
 
-1. Prepare the workspace:
+### 1. Prepare workspace
 
-   ```bash
-   mkdir -p /path/to/your/working/directory
-   cd /path/to/your/working/directory
-   ```
+```bash
+mkdir -p /path/to/your/working/directory
+cd /path/to/your/working/directory
+```
 
-1. Clone this repository, for example:
+### 2. Clone repository
 
-   ```bash
-   git clone https://github.com/NaokiHori/SimpleNpyIO
-   cd SimpleNpyIO
-   ```
+For example:
 
-1. Build and run:
+```bash
+git clone https://github.com/NaokiHori/SimpleNpyIO
+cd SimpleNpyIO
+```
 
-   ```bash
-   make
-   ./a.out
-   ```
+### 3. Build and run
 
-   This outputs:
+```bash
+make
+./a.out
+```
 
-   ```text
-   data (dumped)
-     0   1   2   3   4
-     5   6   7   8   9
-    10  11  12  13  14
-   header is successfully dumped (size: 64)
-   header is successfully loaded (size: 64)
-   data (loaded)
-     0   1   2   3   4
-     5   6   7   8   9
-    10  11  12  13  14
-   ```
+This outputs:
 
-   This demonstrates simple I/O operations: a two-dimensional dataset (shown above) is written to an `NPY` file (`example.npy`) and then reloaded for display.
-   The resulting `example.npy` file can be inspected easily using Python:
+```text
+data (dumped)
+ 0   1   2   3   4
+ 5   6   7   8   9
+10  11  12  13  14
+header is successfully dumped (size: 64)
+header is successfully loaded (size: 64)
+data (loaded)
+ 0   1   2   3   4
+ 5   6   7   8   9
+10  11  12  13  14
+```
 
-   ```python
-   import numpy as np
+This demonstrates simple I/O operations: a two-dimensional dataset (shown above) is written to an `NPY` file (`example.npy`) and then reloaded for display.
+The resulting `example.npy` file can be inspected easily using Python:
 
-   data = np.load("example.npy")
+```python
+import numpy as np
 
-   print(data.shape)  # (3, 5)
-   ```
+data = np.load("example.npy")
 
-   See [`src/main.c`](https://github.com/NaokiHori/SimpleNpyIO/blob/main/src/main.c) for more details.
+print(data.shape)  # (3, 5)
+```
+
+See [`src/main.c`](./src/main.c) for more details.
 
 ## Practical Usage
 
 ### Recommended: Copy
 
-Copy [`src/snpyio.c`](https://github.com/NaokiHori/SimpleNpyIO/blob/main/src/snpyio.c) and [`include/snpyio.h`](https://github.com/NaokiHori/SimpleNpyIO/blob/main/include/snpyio.h) into your project:
+Since this project is fairly simple, just copy [`src/snpyio.c`](./src/snpyio.c) and [`include/snpyio.h`](./include/snpyio.h) into your project would be the easiest:
 
 ```text
 include
@@ -92,7 +99,7 @@ All functions provided by this library are now available by including `snpyio.h`
 #include "snpyio.h"
 ```
 
-For API details and examples, refer to [`src/main.c`](https://github.com/NaokiHori/SimpleNpyIO/blob/main/src/main.c).
+For API details and examples, refer to [`src/main.c`](./src/main.c).
 
 ### Advanced: Git Submodule
 
