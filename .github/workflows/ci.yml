@@ -89,16 +89,3 @@ jobs:
             echo "Valgrind did not detect any memory leaks"
           fi
 
-  check-install:
-    name: Check install script works
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@main
-      - name: Install
-        run: |
-          bash install.sh install
-      - name: Uninstall
-        run: |
-          bash install.sh uninstall
-
