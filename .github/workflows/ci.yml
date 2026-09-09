@@ -18,6 +18,7 @@ jobs:
   test:
     name: Create NPY files in C and load from Python, vice versa
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,6 +36,7 @@ jobs:
   memory-leak-check:
     name: Check memory leak
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     container:
       image: naokihori/alpine-valgrind:1.0
       volumes:
