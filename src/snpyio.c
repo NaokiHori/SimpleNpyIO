@@ -1138,6 +1138,25 @@ err_hndl:
   return 1;
 }
 
+int snpyio_skip_header(
+    FILE * const fp
+) {
+  size_t ndim = 0;
+  size_t * shape = NULL;
+  char * dtype = NULL;
+  bool is_fortran_order = false;
+  size_t header_size = 0;
+  if (0 != snpyio_read_header(&ndim, &shape, &dtype, &is_fortran_order, fp, &header_size)) {
+    goto err_hndl;
+  }
+  memory_free(shape);
+  memory_free(dtype);
+  return 0;
+err_hndl:
+  error_handlings();
+  return 1;
+}
+
 int snpyio_r_header(
     size_t * const ndim,
     size_t ** const shape,

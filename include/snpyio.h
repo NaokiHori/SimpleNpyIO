@@ -33,7 +33,7 @@
  * @param[out] shape            : number of points of the data set in each dimension, e.g. [3, 4]
  * @param[out] dtype            : data type, e.g. "'<f8'"
  * @param[out] is_fortran_order : row-major order (false) or column-major order (true)
- * @param[in]  fp               : file stream to which the header is loaded
+ * @param[in]  fp               : file stream from which the header is loaded
  * @param[out] header_size      : loaded header size (in bytes)
  * @return                      : success: 0, failure: otherwise
  */
@@ -63,6 +63,15 @@ extern int snpyio_write_header(
     const bool is_fortran_order,
     FILE * const fp,
     size_t * const header_size
+);
+
+/**
+ * @brief skip NPY header (read and discard it) to proceed file pointer
+ * @param[in] fp : file stream from which the header is loaded
+ * @return       : success: 0, failure: otherwise
+ */
+extern int snpyio_skip_header(
+    FILE * const fp
 );
 
 /**

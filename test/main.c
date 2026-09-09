@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include "snpyio.h"
 
-static int reader (
+static int reader(
     const char fname[],
     const size_t size_of_element,
     size_t * const ndim,
@@ -42,7 +42,7 @@ static int reader (
   return 0;
 }
 
-static int writer (
+static int writer(
     const char fname[],
     const size_t size_of_element,
     const size_t ndim,
@@ -74,7 +74,43 @@ static int writer (
   return 0;
 }
 
-int main (
+static int skip_header(
+    const char fname[],
+    const size_t size_of_element,
+    const size_t ndim,
+    const size_t * const shape,
+    void ** const data
+) {
+  FILE * const fp = fopen(fname, "r");
+  if (NULL == fp) {
+    printf("file open error: %s\n", fname);
+    exit(EXIT_FAILURE);
+  }
+  // shape and dtype are now given by the library,
+  //   we are responsible for their memory managements
+  const int retval = snpyio_skip_header(fp);
+  if (0 != retval) {
+    printf("snpyio_skip_header failed\n");
+    exit(EXIT_FAILURE);
+  }
+  size_t nitems = 1;
+  for (size_t i = 0; i < ndim; i++) {
+    nitems *= shape[i];
+  }
+  *data = calloc(nitems, size_of_element);
+  if (NULL == *data) {
+    printf("memory allocation error (data)\n");
+    exit(EXIT_FAILURE);
+  }
+  if (nitems != fread(*data, size_of_element, nitems, fp)) {
+    printf("fread failed\n");
+    exit(EXIT_FAILURE);
+  }
+  fclose(fp);
+  return 0;
+}
+
+int main(
     int argc,
     char * argv[]
 ) {
@@ -98,6 +134,8 @@ int main (
   reader(pfname, size_of_element, &ndim, &shape, &dtype, &is_fortran_order, &data);
   // dump
   writer(cfname, size_of_element,  ndim,  shape,  dtype,  is_fortran_order,  data);
+  // read again (read header)
+  skip_header(cfname, size_of_element, ndim, shape, data);
   // clean-up buffers
   free(data);
   free(shape);

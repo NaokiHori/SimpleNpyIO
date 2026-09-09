@@ -80,6 +80,9 @@ See [`src/main.c`](./src/main.c) for more details.
 
 - `snpyio_read_header`: read metadata from a file
 - `snpyio_write_header`: write metadata to a file
+- `snpyio_skip_header`: skip header and set file pointer to the start of data
+
+`snpyio_skip_header` is useful when you know the exact properties of data and want to avoid defining header-related variables.
 
 See [`include/snpyio.h`](./include/snpyio.h) for the arguments.
 

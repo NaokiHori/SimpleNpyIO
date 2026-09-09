@@ -6,7 +6,7 @@
 // type of array
 typedef int mytype;
 
-static void print_array (
+static void print_array(
     const char title[],
     const size_t nx,
     const size_t ny,
@@ -21,7 +21,7 @@ static void print_array (
   }
 }
 
-static int example_writer (
+static int example_writer(
     const char fname[]
 ) {
   // create dataset to be dumped
@@ -80,7 +80,7 @@ static int example_writer (
   return 0;
 }
 
-static int example_reader (
+static int example_reader(
     const char fname[]
 ) {
   // variables which are loaded from npy file
@@ -133,12 +133,46 @@ static int example_reader (
   return 0;
 }
 
+static int example_skip_header(
+    const char fname[]
+) {
+  // data to be loaded
+  mytype * data = NULL;
+  // open file, skip header, read data, and close it
+  FILE * fp = fopen(fname, "r");
+  if (NULL == fp) {
+    printf("file open error: %s\n", fname);
+    exit(EXIT_FAILURE);
+  }
+  const int retval = snpyio_skip_header(fp);
+  if (0 != retval) {
+    printf("snpyio_skip_header failed\n");
+    exit(EXIT_FAILURE);
+  }
+  const size_t shape[2] = {3, 5};
+  data = calloc(shape[0] * shape[1], sizeof(mytype));
+  if (NULL == data) {
+    printf("memory allocation error (data)\n");
+    exit(EXIT_FAILURE);
+  }
+  if (shape[0] * shape[1] != fread(data, sizeof(mytype), shape[0] * shape[1], fp)) {
+    printf("fread failed\n");
+    exit(EXIT_FAILURE);
+  }
+  fclose(fp);
+  print_array("data (loaded)", shape[1], shape[0], data);
+  // clean-up memories
+  free(data);
+  return 0;
+}
+
 int main (
     void
 ) {
   const char fname[] = {"example.npy"};
   example_writer(fname);
   example_reader(fname);
+  example_skip_header(fname);
   return 0;
 }
 
