@@ -11,6 +11,9 @@ on:
       - .github/workflows/ci.yml
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Create NPY files in C and load from Python, vice versa

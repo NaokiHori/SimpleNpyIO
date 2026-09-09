@@ -7,26 +7,15 @@ on:
     types:
       - completed
 
+permissions:
+  contents: write
+
 jobs:
 
   push-submodule-branch:
     name: Push branch for git-submodule
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      checks: none
-      contents: write
-      deployments: none
-      id-token: none
-      issues: none
-      discussions: none
-      packages: none
-      pages: none
-      pull-requests: none
-      repository-projects: none
-      security-events: none
-      statuses: none
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
