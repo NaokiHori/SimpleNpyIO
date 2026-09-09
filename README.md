@@ -3,7 +3,6 @@
 [![License](https://img.shields.io/github/license/NaokiHori/SimpleNpyIO)](https://opensource.org/license/mit/)
 [![Last Commit](https://img.shields.io/github/last-commit/NaokiHori/SimpleNpyIO/main)](https://github.com/NaokiHori/SimpleNpyIO/commits/main)
 [![CI](https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/ci.yml)
-[![Deploy-Pages](https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/NaokiHori/SimpleNpyIO/actions/workflows/pages.yml)
 
 ## Overview
 
@@ -77,7 +76,14 @@ print(data.shape)  # (3, 5)
 
 See [`src/main.c`](./src/main.c) for more details.
 
-## Practical Usage
+## Functions
+
+- `snpyio_read_header`: read metadata from a file
+- `snpyio_write_header`: write metadata to a file
+
+See [`include/snpyio.h`](./include/snpyio.h) for the arguments.
+
+## How to use it in your code
 
 ### Recommended: Copy
 
@@ -112,9 +118,4 @@ git submodule add --branch submodule https://github.com/NaokiHori/SimpleNpyIO
 Include `SimpleNpyIO/include/snpyio.h` and compile `SimpleNpyIO/src/snpyio.c` along with your sources.
 
 See an example [here](https://github.com/NaokiHori/SimpleNSSolver), where this library is imported and used (refer to `.gitmodules`).
-
-## Others
-
-For debugging purposes, compile the source code with the `SNPYIO_ENABLE_LOGGING` flag enabled.
-Refer to the [documentation](https://naokihori.github.io/SimpleNpyIO).
 

@@ -39,7 +39,6 @@ jobs:
         run: |
           git rm -r .github
           git rm .gitignore
-          git rm -r docs
           git rm install.sh
           git rm Makefile
           git rm src/main.c
